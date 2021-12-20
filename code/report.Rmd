@@ -31,35 +31,19 @@ pathProj <- paste0("C:/Users/User/Documents/Projects/Data Science Projects/",
 pathCode <- paste0(pathProj, "code/")
 ```
 
-```{r 2-results-function, echo = FALSE}
-results <- function(dtPValues, nSim, alpha){
-  
-  # Function to calculate the size and power of each test (the results)
-    # Inputs:
-      # dtPValues: (Rx4)-dataframe containing the p-values from the R test replications
-  # for each of the four tests
-  # alpha: significance level
-  # nSim: number of tests simulated
-  #Outputs:
-  # Size and power for the randomization test and two-sample t-test
-  randSize <- length(which(dtPValues[, 1] < alpha)) / nSim
-  randPower <- length(which(dtPValues[, 2] < alpha)) / nSim
-  tSize <- length(which(dtPValues[, 3] < alpha)) / nSim
-  tPower <- length(which(dtPValues[, 4] < alpha)) / nSim
-  print(list(rSize = randSize, rPower = randPower, 
-    tSize = tSize, tPower = tPower))
-}
-```
-
-```{r 3-import-data-functions}
+```{r 2-import-data-functions}
 data("murders")
-murderData <- filter(murders, region == "South" | region == "Northeast")
-# Calculate murder rate per thousandto adjust for exposure
-murderData$rate <- (murderData$total / murderData$population) * 1000
+dtMurders <- 
+  as.data.table(murders)[grepl("south|North", region, ignore.case = TRUE), ]
+dtMurders[grepl("North", region, ignore.case = TRUE), region := "North"]
+# Calculate murder rate per million to adjust for exposure
+dtMurders[, Rate := 1000000 * total / population]
 
-# Import functions
-list_functions <- c("diff-means-function", "gamma-function", 
-                    "randomization-function", "sample-size-function")
+# Import functions- NOTE order is important since results-function is used inside 
+# some of the other functions
+list_functions <- c("results-function", "diff-means-function", "gamma-function", 
+                     "randomization-function", 
+                    "sample-size-function")
 for (i in list_functions) {
   source(paste0(pathCode, i, ".R"))
 }
@@ -67,9 +51,11 @@ for (i in list_functions) {
 
 # 1 Introduction
 
-This report uses computer simulation to assess how the size and power for the two-sample t-test and randomization test for the means of two samples vary under different scenarios. The three scenarios considered are changes in the sample size of test data, changes in the proportional difference in the means between the two samples and changes in the distributional form of the input data. In particular, given the nature of murder rates we consider that they have a gamma distribution with varying parameters. It is seen that the non-parametric randomization test is more robust when the data are no longer normal only at very small sample sizes (less than five for each group), however, the size and power of the two-sample t-test performs well for small samples and changes in the difference in means between the two regions.
+This report assesses how the size and power for the two-sample t-test and randomization test for the means of two samples vary under different scenarios. The three scenarios considered are changes in the sample size of test data, changes in the proportional difference in the means between the two samples and changes in the distributional form of the input data. In particular, given the nature of murder rates we consider that they have a gamma distribution with varying parameters. It is seen that the non-parametric randomization test is more robust when the data are no longer normal only at very small sample sizes (less than five for each group), however, the size and power of the two-sample t-test performs well for small samples and changes in the difference in means between the two regions.
 
-This report assesses how the size and power of a parametric (two-sample t-test) and non-parametric (randomization) test changes when the two samples of interest have changing properties. Those properties are changes in the sample size of the simulated samples, changes in the effect size (difference) between the means of the two samples and the consideration of gamma (non-normal) data. The context of this report is to consider whether murder rates are different between Southern and North Eastern states in the United States. In particular, states in the North-Eastern region largely do not impose the death penalty for homicide and have lower rates of unemployment and poverty compared to the Southern States (Death Penalty Information Centre, 2019). The data considered is the murder rate per thousand in each state. 
+This report assesses how the size and power of a parametric (two-sample t-test) and non-parametric (randomization) test changes when the two samples of interest have changing properties. Those properties are changes in the sample size of the simulated samples, changes in the effect size (difference) between the means of the two samples and the consideration of gamma (non-normal) data. The context of this report is to consider whether murder rates are different between Southern and Northern states in the US. In particular, states in the North-Eastern region largely do not impose the death penalty for homicide and have lower rates of unemployment and poverty compared to the Southern States (Death Penalty Information Centre, 2019). The data considered is the murder rate per thousand in each state. 
+
+In particular I would like to know whether my prior expectation of the murder rate being higher in Southern US states compared to Northern states is reasonable.
 
 # 2 Methodology
 
@@ -89,6 +75,18 @@ Randomization tests tend to be more useful when we have fewer parameters but her
 
 given murder rates and calculate a t-distribution for the t-statistics under this null. The purpose of the randomization test is to generate a distribution of the t-statistic under the null hypothesis that there is no difference in mean murder rate of the two regions. Randomization tests may be particularly useful when the distribution of the data is strongly different to that of a normal distribution and the sample size is small.
 
+Permuting the data is equivalent to shuffle all labels for the groups in which observations lie in around. 
+
+__Randomization Test Algorithm__
+
+1) Define K as the number of permutations
+2) for k = 1, ..., K
+  2.1) Sample a permutation of the data
+  2.2) Calculate the test statistic $T_k^{(R)}$ for this permutation
+3) Count the number of permutations, $m$, for which $T_k^{(R)} \geq T^{(Obs)}$
+4) p-value = $\frac{m}{K}$
+
+
 ## 2.3 Size and Power
 
 The murder rates data for the Southern and North Eastern regions have means of 0.04417 and 0.01848 and variances of 0.001138 and 0.000138, respectively. Given the low variance size which may induce the power of both tests to always be one, we consider a much greater variance of 0.1 for each sample so that there is clear ‘overlap’ in the distributions of murder rates for each region.
@@ -96,6 +94,9 @@ We therefore start by assuming a somewhat unrealistic normal distribution given 
 X_(i,S)  ~ N(0.04417,0.1) and X_(i,NE)  ~ N(0.01848,0.1)
 We now calculate the size and power of our parametric and non-parametric tests by numerical integration. This involves evaluating each test for many samples and calculating the proportion of tests in which the p-value is less than the significance level, α (in this paper we consider the standard significance level of 5%). Incorrectly rejecting H_0 when the null hypothesis is actually true is referred to as a “type 1 error” and is known as the size of the test. Given this, one would expect the size of the test to be similar to the significance level used.
 Conversely, the power of a test is the probability that we reject H_0 given that the null is false. Therefore, we would like tests that exhibit high power. The size and power of these tests will vary, depending on 
+
+To help interpretability of the data we consider the murder rate per million.
+
 We simulate data under different scenarios to create a sample and then do this 1000 times to create 1000 samples. For each sample, we carry out the parametric and non-parametric tests and store the results in some matrix with 2 columns and 1000 rows. From this we then calculate the proportion of tests aht have type 1 and type 2 errors (i.e.- the size and power of these tests)
 
 # 3 Results
@@ -154,11 +155,43 @@ Alpha=, beta=
 100				
 200				
 500				
-1000				
+1000			
+
+Problem with T-tests is they are _Parametric_ and therefore require assumptions about the distribution of the data (e.g. Normality) and assumptions about the distribution of the test statistic under the Null hypothesis (derived from assumptions about the distribution of the data).
+
+Randomization tests are similar to _Permutation tests_. Under a permutation test, we permute the values across the 2 groups, since under our null hypothesis there is no difference in the value of interest. We then calculate the test statistic for each permutation, giving us a distribution of the test statistic under the Null hypothesis. Randomization tests are like permutation tests, except that only a random subset of all the possible permutations are generated.
+We get an approximate distribution of the test statistc that is non-parametric hence requires no assumptions about the data.
 
 In particular, given the shape of the histogram when plotting murder rates, we use variants of the gamma distribution, including the chi-squared distribution to assess how the power and size of these tests alter when the data have different distirbutions.
 Whilst the t-test may not be valid for non-normal data, if the sample size is large enough then the t-test will be robust due to the central limit theorem. If the data is non-normal, then 
 Generally, we see that the two-sided t-test tends to outperform the randomization test, except when the data is gamma distributed and no longer normal. Other methods could also have been used to assess the small sample properties of the two tests when the variance of each sample is different, when the variance increases so that there is greater overlap in the distributions of each region, or if other non-normal distributions were used to simulate the data.
+
+Randomization tests can be extended to a plethora of scenarios. 
+
+<div class="alert alert-info">
+  <strong>Is Normality a Reasonable Assumption?</strong> 
+  
+  In many cases it may not intuitively feel as though our data is normally distibuted for this assumption in the Two-Sample T-Test to seem feasible. However, the _Central Limit Theorem_ ( __CLT__ ) tells us that the sample mean $\bar{X}_n$ of a large sample of random variables with mean $\mu$ and finite variance $\sigma^2$ has approximately a normal distribution with mean $\mu$ and variance $\frac{\sigma^2}{n}$.
+  
+  This result helps to justify the use of the normal distribution as a model for many variables that can be thought of as being made up of many independent parts. The CLT is therefore a formal statement of how normal distributions can approximate distributions of general sums or averages of i.i.d. radm variables. For example, a person's height is influenced by many random factors. If the height of each person is determined by adding the values of these individual factors, then the distribution of the heights of a large number of persons will be approximately normally distributed. In general, the CLT indictes that the distribution of the sum of many random variables can be approximately normal, even though the distribtuion of each random variable in the sum differs from normality.
+</div>
+
+<div class="alert alert-info">
+  <strong>The caveats of p-values</strong> 
+  
+  A _p-value_ is the samllest level $\alpha_0$ such that we would reject the null-hypothesis at level $\alpha_0$ with the observed data. This is the probability of seeing a test statistic at least as extreme as the one observed, under the Null hypothesis that the test statistic came from the null distribution. An experimenter who rejects a null hypothesis iff the p-value is at most $\alpha_0$ is using a test with level of significance $\alpha_0$.
+  
+  The choice of significance threshold, $\alpha_0$, for rejection of the Null hypothesis is arbitrary. Typically we take $\alpha_0 = 0.05$ but by definition this yields a type-1 error (incorrectly reject the null hypothesis) with probability 0.05. 
+</div>
+
+
+<div class="alert alert-info">
+  <strong>Central Limit Theorem when the Support is not the Whole Real Line</strong> 
+  
+  Naturally the murder rate cannot be negative. Therefore, the mean of the murder rate cannot be negative and must have the same support as the murder rate itself. This implies the assumption of a Normal distribution for $\bar{X}_n$ is invalid since the Normal distribution can have negative support. 
+ 
+</div>
+
 
 # 4 Conclusion
 
@@ -179,24 +212,35 @@ Glennie, R. (2019). MT4113- Computing in Statistics. [Lecture Notes] University 
 Bartlett, J. (September 28, 2013). The t-test and Robustness to Non-Normality. Retrieved from: https://thestatsgeek.com/2013/09/28/the-t-test-and-robustness-to-non-normality/
 Lehman, E. (1999). Elements of Large Sample Theory. Springer-Verlag, New York.
 
+DeGroot, M., Schervish, M. (2012). Probability and Statistics (4th Ed.). Pearson Education.
+
 # Exploratory Data Analysis
+
+Simply calculating the mean of . Naturally we could increase the sample size and hence the power fo the test by simply considering that the number of murders in each state is the sum of murders for the counties that constitute each state. 
+
+https://stats.stackexchange.com/questions/339759/how-can-the-central-limit-theorem-hold-for-distributions-which-have-limits-on-th
+
+A Normal distribution actually seems a reasonable assumption. The number of murders for each state is the addition of the number of murders at much more local levels, such as by county. Many factors will also impact on the number of murders. Therefore the total number of murders across states can be seen as the sum of many individual factors, therefore it is reasonable to assume an approximately normal distribution Of course, one caveat of this is that we can't have negative murders and by the continuous nature of the normal distribution, this will always be theoretically possible, even for a large mean estimate and small variance. 
+
+When is the data from, i.e. what time period and what is the original, credible source of the data?
 
 ```{r}
 #We consider the distributional properties of the original murder rates data
 #to inform the properties of the simulated data
-SouthData <- filter(murderData, region == "South")
-NorthData <- filter(murderData, region == "Northeast")
 #Plot the distribution of the original data for each region
-hist(SouthData$rate, xlab = "Murder Rate", main = "South Region Murder Rate 
-     Distribution")
-hist(NorthData$rate, xlab = "Murder Rate", main = "North East Region Murder
+cSouthRate <- dtMurders[region == "South", ]$Rate
+cNorthRate <- dtMurders[region == "North", ]$Rate
+hist(cSouthRate, xlab = "Murder Rate", 
+     main = "South Region Murder Rate Distribution")
+hist(cNorthRate, xlab = "Murder Rate", main = "North East Region Murder
      Rate Distribution")
 #Mean murder rates for each region
-mean(SouthData$rate)
-mean(NorthData$rate)
+mean(cSouthRate)
+mean(cNorthRate)
 #Variance of murder rates for each region
-var(SouthData$rate)
-var(NorthData$rate)
+var(cSouthRate)
+var(cNorthRate)
+# kable these summary statistics together into a table
 
 #1) Scenario 1
 
