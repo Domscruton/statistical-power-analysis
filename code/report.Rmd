@@ -1,0 +1,164 @@
+---
+title: "Statistical Power Analysis"
+author: "Dominic Scruton"
+date: "December 2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+install.packages("dslabs") 
+help(package = "dslabs")
+library(dslabs)
+library(dplyr)
+library(ggplot2)
+data("murders")
+#Keep states in the South and North East Regions
+murderData <- filter(murders, region == "South" | region == "Northeast")
+#Calculate the murder rate per thousand
+murderData$rate <- (murderData$total / murderData$population) * 1000
+```
+
+```{r}
+results <- function(P, R, alpha){
+  #Function to calculate the size and power of each test (the results)
+  #Inputs:
+  # P: (Rx4)-dataframe containing the p-values from the R test replications
+  # for each of the four tests
+  # alpha: significance level
+  # R: number of tests simulated
+  #Outputs:
+  # Size and power for the randomization test and two-sample t-test
+  randSize <- length(which(P[, 1] < alpha)) / R
+  randPower <- length(which(P[, 2] < alpha)) / R
+  tSize <- length(which(P[, 3] < alpha)) / R
+  tPower <- length(which(P[, 4] < alpha)) / R
+  print(list(rSize = randSize, rPower = randPower, 
+    tSize = tSize, tPower = tPower))
+}
+```
+
+# Exploratory Data Analysis
+
+```{r}
+#We consider the distributional properties of the original murder rates data
+#to inform the properties of the simulated data
+SouthData <- filter(murderData, region == "South")
+NorthData <- filter(murderData, region == "Northeast")
+#Plot the distribution of the original data for each region
+hist(SouthData$rate, xlab = "Murder Rate", main = "South Region Murder Rate 
+     Distribution")
+hist(NorthData$rate, xlab = "Murder Rate", main = "North East Region Murder
+     Rate Distribution")
+#Mean murder rates for each region
+mean(SouthData$rate)
+mean(NorthData$rate)
+#Variance of murder rates for each region
+var(SouthData$rate)
+var(NorthData$rate)
+
+#1) Scenario 1
+
+#Use the sampSizeFun function to calculate power and size for samples of
+#increasing size
+n2 <- sampSizeFun(N = 2, K = 200, R = 500)
+n3 <- sampSizeFun(N = 3, K = 200, R = 500)
+n4 <- sampSizeFun(N = 4, K = 200, R = 500)
+n5 <- sampSizeFun(N = 5, K = 200, R = 500)
+n10 <- sampSizeFun(N = 10, K = 200, R = 500)
+n20 <- sampSizeFun(N = 20, K = 200, R = 500)
+n50 <- sampSizeFun(N = 50, K = 200, R = 500)
+n100 <- sampSizeFun(N = 100, K= 200, R = 500)
+n200 <- sampSizeFun(N = 200, K = 200, R = 500)
+n500 <- sampSizeFun(N = 500, K = 200, R = 500)
+n1000 <- sampSizeFun(N = 1000, K = 200, R = 500)
+
+#Plot sample size and Power for both tests
+#vector of sample sizes
+N <- c(5, 10, 20, 50, 100, 200, 500, 1000)
+#dataframe of test powers and sizes
+SampRes <- rbind(n5, n10, n20, n50, n100, n200, n500, n1000)
+SampRes
+#Plot of test power against sample size
+ggplot() + geom_point(aes(x = N, y = SampRes$rPower, 
+  col = 'Randomization Test'), size = 3) + geom_point(aes(x = N, 
+  y = SampRes$tPower, col = 't-test'), size = 3) + 
+  labs(title = 'Test Power for Increasing Sample Size', x = 'Sample Size', 
+  y = 'Power') + geom_line(aes(x = N, y = SampRes$rPower, 
+  col = 'Randomization Test'), size = 1.2) + geom_line(aes(x = N, 
+  y = SampRes$tPower, col = 't-test'), size = 1.2)
+#Plot of test size against sample size
+ggplot() + 
+  geom_point(aes(x = N, y = SampRes$rSize, col = 'Randomization Test'), size = 2) + 
+  geom_point(aes(x = N, y = SampRes$tSize, col = 't-test'), size = 2) + 
+  labs(title = 'Test Size for Increasing Sample Size', x = 'Sample Size', 
+       y = 'Test Size') + 
+  geom_line(aes(x = N, y = SampRes$rSize, col = 'Randomization Test'), size = 1) + 
+  geom_line(aes(x = N, y = SampRes$tSize, col = 't-test'), size = 1)
+
+#2) Scenario 2
+
+#Use the diffMeansFun function to calculate power and size for samples 
+#with increasing differences in means
+D0 <- diffMeansFun(diff = 0, K= 200, R= 1000)
+D1 <- diffMeansFun(diff = 0.0025, K = 200, R = 1000)
+D2 <- diffMeansFun(diff = 0.005, K = 200, R = 1000)
+D3 <- diffMeansFun(diff = 0.0075, K = 200, R = 1000)
+D4 <- diffMeansFun(diff = 0.01, K = 200, R = 1000)
+D5 <- diffMeansFun(diff = 0.0125, K = 200, R = 1000)
+D6 <- diffMeansFun(diff = 0.015, K = 200, R = 1000)
+D7 <- diffMeansFun(diff = 0.0175, K = 200, R = 1000)
+D8 <- diffMeansFun(diff = 0.02, K = 200, R = 1000)
+#vector of mean differences
+S <- c(0.0, 0.0025, 0.005, 0.0075, 0.01, 0.0125, 0.015, 0.0175, 0.02)
+#dataframe of test powers and sizes
+diffRes <- rbind(D0, D1, D2, D3, D4, D5, D6, D7, D8)
+diffRes
+#Plot how power changes with increasing effect size
+ggplot() + 
+  geom_point(aes(x = S, y = diffRes$rPower, col = 'Randomization Test'), size = 2) + 
+  geom_point(aes(x = S, y = diffRes$tPower, col = 't-test'), size = 2) + 
+  labs(title = 'Test Power for Increasing Effect Size', x = 'Sample Size', 
+    y = 'Power') + 
+  geom_line(aes(x = S, y = diffRes$rPower, col = 'Randomization Test'), size = 1) + 
+  geom_line(aes(x = S, y = diffRes$tPower, col = 't-test'), size = 1)
+
+
+#3) Scenario 3
+
+#Apply the function to Gamma Distributions with different parameters
+G1 <- gammaFun(par1 = c(4, 100),par2 = c(2, 100), K = 100, R = 1000, N = 10)
+G2 <- gammaFun(par1 = c(4, 100),par2 = c(2, 100), K = 100, R = 1000, N = 100)
+G3 <- gammaFun(par1 = c(4, 100),par2 = c(2, 100), K = 100, R = 1000, N = 1000)
+G4 <- gammaFun(par1 = c(3.2, 100),par2 = c(2.8, 100), K = 100, R = 1000, N = 10)
+G5 <- gammaFun(par1 = c(3.2, 100),par2 = c(2.8, 100), K = 100, R = 1000, N = 100)
+G6 <- gammaFun(par1 = c(3.2, 100),par2 = c(2.8, 100), K = 100, R = 1000, N = 1000)
+
+#Collect the results in a dataframe for comparison
+gammaResults <- rbind(G1, G2, G3, G4, G5, G6)
+gammaResults
+#Plot each simulated gamma distribution against the South data
+hist(SouthData$rate, xlab = "Murder Rate", main = "South Region Murder Rate 
+     Distribution", freq = FALSE)
+lines(density(rgamma(10000, 4.417, 100)), col = 'blue')
+lines(density(rgamma(10000, 5, 100)), col = 'red')
+lines(density(rgamma(10000, 4.417, 110)), col = 'green')
+#Plot each simulated gamma distribution against the North East data
+hist(NorthData$rate, xlab = "Murder Rate", main = "North East Region Murder
+     Rate Distribution", freq = FALSE)
+lines(density(rgamma(10000, 1.848, 100)), col = 'blue')
+lines(density(rgamma(10000, 2, 100)), col = 'red')
+lines(density(rgamma(10000, 1.848, 110)), col = 'green')
+#Graph to show changes in the two simulated gamma distributions
+plot(density(rgamma(10000, 4.417, 100)), col = 'blue', xlab = 'Murder Rate', 
+  main = 'Different Gamma Distributions Simulated for the Regions', 
+  xlim = c(0, 0.12), ylim = c(0, 45), lwd = 2)
+lines(density(rgamma(10000, 5, 100)), col = 'red', lwd = 2)
+lines(density(rgamma(10000, 4.417, 110)), col = 'green', lwd = 2)
+lines(density(rgamma(10000, 1.848, 100)), col = 'blue', lty = 2, lwd = 2)
+lines(density(rgamma(10000, 2, 100)), col = 'red', lty = 2, lwd = 2)
+lines(density(rgamma(10000, 1.1, 48)), col = 'green', lty = 2, lwd = 2)
+```
