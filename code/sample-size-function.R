@@ -1,11 +1,30 @@
 
+# Initialize Environment --------------------------------------------------
+
+pathProj <- paste0("C:/Users/User/Documents/Projects/Data Science Projects/", 
+                   "statistical-power-analysis/")
+pathCode <- paste0(pathProj, "code/")
+
+# Source functions
+cFunSource <- c("results", "sample-size", "randomization", "help")
+for (i in cFunSource) {
+  source(paste0(pathCode, i, "-function.R"))
+}
+
+# Simulation Function -----------------------------------------------------
+
+# Function to assess performance of Two-Sample randomization and t-tests for 
+# variations in the distributional properties of a dataset
+
+# Input function for SimulationFun, used to calculate p-values for the 
+# Randomization and t-test
 pValueFun <- function(){
   # double assignment ensures object available outside function
   P[i, 1] <<- randomFun(data = dtNew, K = K, colTest = "xTest", 
                      colResponse = "xResponse", test.args = FALSE, 
-                     level)
+                     levels = c("A", "B"))
   # Actual t-test p-value
-  P[i, 2] <<- t.test(H0[1:N, 2], H0[(N + 1):(2 * N), 2])$p.value
+  P[i, 2] <<- t.test(data[1:N, 2], data[(N + 1):(2 * N), 2])$p.value
 }
 
 
@@ -67,7 +86,7 @@ SimulationFun <- function(N = 1000, K = 1000, R = 100, alpha = 0.05,
       dtNew[, xResponse := ifelse(xTest == "A", 
                                   rgamma(N, shape = shape[1], rate = rate[2]), 
                                   rgamma(N, shape = shape[2], rate = rate[2]))]
-      x <- pValueFun()
+      pValueFun()
     }
   }else{
     stop("distribution must be either 'gaussian' or 'gamma'\n 
@@ -75,7 +94,7 @@ SimulationFun <- function(N = 1000, K = 1000, R = 100, alpha = 0.05,
   }
 
   # return size and power of each test
-  return(as.data.frame(results(P, R, alpha)))
+  return(as.data.table(resultsFun(P, R, alpha)))
 }
 
 # question- is it quicker to store values as a matrix or a data.table in the above?
