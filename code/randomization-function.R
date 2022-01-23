@@ -6,15 +6,15 @@
 randomFunTest <- function(data, K, colTest, colResponse, levels = NULL){
   # Check arguments
   # 1) data
-  if (!is.data.frame(data) & !is.data.table(data)) {
+  if (!is.data.table(data) & !is.data.frame(data)) {
     stop("data must be of class data.frame or data.table")
-  }else if (length(sapply(data, is.numeric)) < 2) {
-    stop("Randomization test requires at least 2 numeric columns in input 
+  }else if (sum(sapply(data, is.numeric)) < 1) {
+    stop("Randomization test requires at least 1 numeric columns in input 
          dataset")
-  }else if (length(sapply(data, is.numeric)) > 2 & is.null(vars)) {
+  }else if (dim(data)[2] > 2) {
     warning("More than 2 columns provided and column names not specified. 
-            First two numeric columns used. Please specify required columns if 
-            these are incorrect")
+            First two columns used as Test and Response columns. 
+            \nPlease specify required columns if these are incorrect")
   }
   # 2) K
   if (!is.numeric(K)) {
@@ -33,7 +33,7 @@ randomFunTest <- function(data, K, colTest, colResponse, levels = NULL){
   }
   # 4) Levels
   if (!is.null(levels)) {
-    if (!(levels %in% data[, get(colTest)])) {
+    if (any(!(levels %in% data[, get(colTest)]))) {
       stop("Provided levels not found in Test column")
     }
   }else{
@@ -50,7 +50,7 @@ randomFunTest <- function(data, K, colTest, colResponse, levels = NULL){
 # randomFun ---------------------------------------------------------------
 
 randomFun <- function(data, K = 1000, colTest, colResponse, 
-                      levels = NULL){
+                      levels = NULL, test.args = TRUE){
   # Function to calculate randomized test statistics
   # Inputs:
     # data: combined dataset for the two samples
@@ -58,36 +58,39 @@ randomFun <- function(data, K = 1000, colTest, colResponse,
     # colTest: character string specifying testing column
     # colResponse: character string specifying response column
     # levels: optional character vector of 2 levels of colTest for comparison
-            # if not specified performs two-sample t-test across all levels
+            # if not specified performs two-sample t-test for first 2 levels
+    # test.args: should arguments be tested for compatability?
   # Output:
     # p-value from empirical t-distribution
 
   # Check arguments
-  randomFunTest()
+  if (test.args) {
+    randomFunTest(data, K, colTest, colResponse, levels)
+  }
   
   # Convert dataframe to data.table (data.table more efficient)
-  data <- as.data.table(data)
-  # specify variables and levels if unspecified
-  for (i in c("colTest", "colResponse")) {
-    if (is.null(eval(parse(i)))) {
-      parse(i) <- 
-    }
+  dtdata <- as.data.table(x = data)
+  # specify levels if unspecified
+  if (is.null(levels)) {
+    levels <- unique(dtdata[, get(colTest)])[1:2]
   }
   
   # Calculate number of observations within each level
-  n1 <- length(which(data$region == "South"))
-  n2 <- length(which(data$region == "Northeast"))
+  cn1 <- dim(dtdata[get(colTest) %in% levels[1], ])[1]
+  cn2 <- dim(dtdata[get(colTest) %in% levels[2], ])[1]
   # Initialize storage vector for test statistics
   Trand <- rep(NA, K)
   for (k in 1:K) {
     # Create randomised samples by permuting the data
-    indices <- sample(1:(n1 + n2))
-    dtperm <- data[indices, rate]
+    indices <- sample(1:(cn1 + cn2))
+    # get() collapses datatable to vector
+    dtperm <- dtdata[indices, get(colResponse)]
     # Calculate t-statistic for each permutation
-    Trand[k] <- abs(mean(perm[1:n1]) - mean(perm[(n1 + 1):(n1 + n2)]))
+    Trand[k] <- abs(mean(dtperm[1:cn1]) - mean(dtperm[(cn1 + 1):(cn1 + cn2)]))
   }
   # Calculate t-statistic for original data
-  Tobs <- abs(mean(data$rate[1:n1]) - mean(data$rate[(n1 + 1):(n1 + n2)]))
+  Tobs <- abs(mean(dtdata[1:cn1, get(colResponse)]) - 
+                mean(dtdata[(cn1 + 1):(cn1 + cn2), get(colResponse)]))
   # p-value
   p <- length(which(Trand > Tobs)) / K
   return(p)
