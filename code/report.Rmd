@@ -13,8 +13,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r 1-initialize-session, echo = FALSE, message = FALSE, results = FALSE}
-# Load required packages or install and load if not installed
-packages <- c("data.table", "dslabs", "dplyr", "ggplot2")
+packages <- c("data.table", "dslabs", "dplyr", "ggplot2", "knitr")
 fun_check_packages <- function(x){
   # require returns warning (library returns error) and implicit True/False 
   # statement depending on whether package is available or not
@@ -29,24 +28,22 @@ lapply(packages, fun_check_packages)
 pathProj <- paste0("C:/Users/User/Documents/Projects/Data Science Projects/", 
                    "statistical-power-analysis/")
 pathCode <- paste0(pathProj, "code/")
+
+# Source functions
+source(paste0(pathCode, "sample-size-function.R"))
+
+# Set seed for reproducibility
+set.seed(567)
 ```
 
-```{r 2-import-data-functions}
+```{r 2-prepare-data}
 data("murders")
-dtMurders <- 
-  as.data.table(murders)[grepl("south|North", region, ignore.case = TRUE), ]
-dtMurders[grepl("North", region, ignore.case = TRUE), region := "North"]
+dtMurders <- as.data.table(murders)[grepl("south|North", 
+              region, ignore.case = TRUE), ]
+dtMurders[grepl("North", region, ignore.case = TRUE), 
+          region := "North"]
 # Calculate murder rate per million to adjust for exposure
 dtMurders[, Rate := 1000000 * total / population]
-
-# Import functions- NOTE order is important since results-function is used inside 
-# some of the other functions
-list_functions <- c("results-function", "diff-means-function", "gamma-function", 
-                     "randomization-function", 
-                    "sample-size-function")
-for (i in list_functions) {
-  source(paste0(pathCode, i, ".R"))
-}
 ```
 
 # 1 Introduction
@@ -56,6 +53,9 @@ This report assesses how the size and power for the two-sample t-test and random
 This report assesses how the size and power of a parametric (two-sample t-test) and non-parametric (randomization) test changes when the two samples of interest have changing properties. Those properties are changes in the sample size of the simulated samples, changes in the effect size (difference) between the means of the two samples and the consideration of gamma (non-normal) data. The context of this report is to consider whether murder rates are different between Southern and Northern states in the US. In particular, states in the North-Eastern region largely do not impose the death penalty for homicide and have lower rates of unemployment and poverty compared to the Southern States (Death Penalty Information Centre, 2019). The data considered is the murder rate per thousand in each state. 
 
 In particular I would like to know whether my prior expectation of the murder rate being higher in Southern US states compared to Northern states is reasonable.
+
+Mention bootstrapping as something similar
+
 
 # 2 Methodology
 
@@ -91,6 +91,9 @@ __Randomization Test Algorithm__
 
 The murder rates data for the Southern and North Eastern regions have means of 0.04417 and 0.01848 and variances of 0.001138 and 0.000138, respectively. Given the low variance size which may induce the power of both tests to always be one, we consider a much greater variance of 0.1 for each sample so that there is clear ‘overlap’ in the distributions of murder rates for each region.
 We therefore start by assuming a somewhat unrealistic normal distribution given below:
+
+$$X_{i}^{(S)} \sim N(0.04417, 0.1) \\ X_{i}^{(N)} \sim N(0.01848, 0.1)$$
+
 X_(i,S)  ~ N(0.04417,0.1) and X_(i,NE)  ~ N(0.01848,0.1)
 We now calculate the size and power of our parametric and non-parametric tests by numerical integration. This involves evaluating each test for many samples and calculating the proportion of tests in which the p-value is less than the significance level, α (in this paper we consider the standard significance level of 5%). Incorrectly rejecting H_0 when the null hypothesis is actually true is referred to as a “type 1 error” and is known as the size of the test. Given this, one would expect the size of the test to be similar to the significance level used.
 Conversely, the power of a test is the probability that we reject H_0 given that the null is false. Therefore, we would like tests that exhibit high power. The size and power of these tests will vary, depending on 
@@ -99,13 +102,85 @@ To help interpretability of the data we consider the murder rate per million.
 
 We simulate data under different scenarios to create a sample and then do this 1000 times to create 1000 samples. For each sample, we carry out the parametric and non-parametric tests and store the results in some matrix with 2 columns and 1000 rows. From this we then calculate the proportion of tests aht have type 1 and type 2 errors (i.e.- the size and power of these tests)
 
-# 3 Results
+# 3 United States Murder Rates
+
+A more appropriated boxplot would also appear to conclude that murder rates are lower in Northern states than Southern States. However we prefer a formal statistical test to assess our hypothesis and to quantify our uncertainty about such conclusions.
+
+? What about confounding
+
+```{r}
+#We consider the distributional properties of the original murder rates data
+#to inform the properties of the simulated data
+#Plot the distribution of the original data for each region
+cSouthRate <- dtMurders[region == "South", ]$Rate
+cNorthRate <- dtMurders[region == "North", ]$Rate
+ggplot(dtMurders[region %in% c("South", "North")]) +
+  geom_density(aes(x = Rate, col = region))
+ggplot(dtMurders[region %in% c("South", "North")]) +
+  geom_boxplot(aes(x = region, y = Rate))
+hist(cSouthRate, xlab = "Murder Rate", 
+     main = "South Region Murder Rate Distribution")
+hist(cNorthRate, xlab = "Murder Rate", main = "North East Region Murder
+     Rate Distribution")
+#Mean murder rates for each region
+kable(dtMurders[, .(MurderRate = mean(Rate), Variance = var(Rate)), 
+                by = region], format = "rmarkdown")
+```
+
+<div class="alert alert-info">
+  <strong>Confounding</strong> 
+  
+  Typically when testing a hypothesis we might consider __Confounding features__; variables correlated both with the target and explanatory features. Their ommitance can result in invalid conclusions of causation between the dependent and independent feature.
+  
+  For example, if we wanted to instead answer the question "does the area in which a person resides determine their chance of committing a murder". In order to answer this question fairly, we would need to control for other features that explain differences in the murder rate between Norther and Southern states, such as average income, employment rates and measures of deprivation. Once we control for these features in an appropriate model, it might be the case that the state a person is located in is no longer statistically significant in explaining murder rates. Theses alternative __Causal__ factors would be of particular importance in taking decisions to reduce murder rates in Southern states
+ 
+</div>
+
+
+# 4 Simulation Study
 
 Given that repeating the randomization function many times can be computationally time-consuming, we consider randomization tests of 200 samples and repeat the tests 1000 times.
 
 ## 3.1 Scenario 1 – Change the Sample Size
 
 Smaller samples may reduce the power of tests to reject the null. Such samples may contain values far in the tails of the respective distributions and thus affect the size and power of these tests. We therefore consider the size and power of the two tests for samples of increasing size.
+
+#1) Scenario 1
+
+```{r}
+#Use the sampSizeFun function to calculate power and size for samples of
+#increasing size
+# Sample sizes to simulate. Doubling saves computational time and
+# allows us to log-transform the scale
+cSampSize <- 2 ^ seq(1, 8)
+# storage datatable of results
+matResults1 <- matrix(NA, nrow = length(cSampSize), ncol = 5)
+matResults1[, 1] <- cSampSize
+colnames(matResults1) <- c("N", "rSizePower", "rAvgPValue",
+                           "tSizePower", "tAvgPValue")
+j <- 0
+for (i in cSampSize) {
+  j <- j + 1
+  matResults1[j, 2:5] <- sapply(SimulationFun(N = i, K = 10, R = 10), 
+                            "[[", 1)[2:5]
+}
+#Plot of test power against sample size
+ggplot() + geom_point(aes(x = N, y = SampRes$rPower, 
+  col = 'Randomization Test'), size = 3) + geom_point(aes(x = N, 
+  y = SampRes$tPower, col = 't-test'), size = 3) + 
+  labs(title = 'Test Power for Increasing Sample Size', x = 'Sample Size', 
+  y = 'Power') + geom_line(aes(x = N, y = SampRes$rPower, 
+  col = 'Randomization Test'), size = 1.2) + geom_line(aes(x = N, 
+  y = SampRes$tPower, col = 't-test'), size = 1.2)
+#Plot of test size against sample size
+ggplot() + 
+  geom_point(aes(x = N, y = SampRes$rSize, col = 'Randomization Test'), size = 2) + 
+  geom_point(aes(x = N, y = SampRes$tSize, col = 't-test'), size = 2) + 
+  labs(title = 'Test Size for Increasing Sample Size', x = 'Sample Size', 
+       y = 'Test Size') + 
+  geom_line(aes(x = N, y = SampRes$rSize, col = 'Randomization Test'), size = 1) + 
+  geom_line(aes(x = N, y = SampRes$tSize, col = 't-test'), size = 1)
+```
 
 Table 1- Size and Power for Increasing Sample Size
 Sample Size	Randomization Size	Randomization Power	t-test Size	t-test Power
@@ -121,19 +196,38 @@ Sample Size	Randomization Size	Randomization Power	t-test Size	t-test Power
 
 We see that the power of the randomization sample increases as the number of randomizaed sample we calculate increases. Here we only simulate for randomized samples of size 500 given the computational time required for this process.
 
+```{r}
+#2) Scenario 2
+
+#Use the diffMeansFun function to calculate power and size for samples 
+#with increasing differences in means
+D0 <- diffMeansFun(diff = 0, K= 200, R= 1000)
+D1 <- diffMeansFun(diff = 0.0025, K = 200, R = 1000)
+D2 <- diffMeansFun(diff = 0.005, K = 200, R = 1000)
+D3 <- diffMeansFun(diff = 0.0075, K = 200, R = 1000)
+D4 <- diffMeansFun(diff = 0.01, K = 200, R = 1000)
+D5 <- diffMeansFun(diff = 0.0125, K = 200, R = 1000)
+D6 <- diffMeansFun(diff = 0.015, K = 200, R = 1000)
+D7 <- diffMeansFun(diff = 0.0175, K = 200, R = 1000)
+D8 <- diffMeansFun(diff = 0.02, K = 200, R = 1000)
+#vector of mean differences
+S <- c(0.0, 0.0025, 0.005, 0.0075, 0.01, 0.0125, 0.015, 0.0175, 0.02)
+#dataframe of test powers and sizes
+diffRes <- rbind(D0, D1, D2, D3, D4, D5, D6, D7, D8)
+diffRes
+#Plot how power changes with increasing effect size
+ggplot() + 
+  geom_point(aes(x = S, y = diffRes$rPower, col = 'Randomization Test'), size = 2) + 
+  geom_point(aes(x = S, y = diffRes$tPower, col = 't-test'), size = 2) + 
+  labs(title = 'Test Power for Increasing Effect Size', x = 'Sample Size', 
+    y = 'Power') + 
+  geom_line(aes(x = S, y = diffRes$rPower, col = 'Randomization Test'), size = 1) + 
+  geom_line(aes(x = S, y = diffRes$tPower, col = 't-test'), size = 1)
+
+```
+
 In this case, we consider differing scenarios in which the 
 When considering the test size and power, we should consider that repetitions of 1000 are relatively low for testing the true power and size.
-
-Effect Size	Relative Effect Size	Randomization Power	t-test Power
-0	0	0.055	0.055
-0.0025		0.088	0.089
-0.005		0.178	0.181
-0.0075		0.374	0.380
-0.01		0.594	0.601
-0.0125		0.794	0.809
-0.015		0.907	0.918
-0.0175		0.967	0.970
-0.02		0.996	0.995
 
 For this question, it could be that there is a strong re-distribution of the murder rates between years and that 2010 is not representative of the long-run distributions in murder rates for each region. For example, it could be that states in the North East regions had a particularly low murder rate in 2010 compared to the long-run distribution of murder rates for each region. In this case, we may have a sample for 2010 that is at the tails of the long-run distribution for murder rates. The change in power as the difference in means increases is essentially what we would see if the variance of each sample was decreasing. In this case we get a test size of 0.057 for both the randomization test and two-sample t-test.
 
@@ -141,10 +235,53 @@ So far, we have simulated murder rates for both regions using normal distributio
 
 because murder rates are always positive and tend to have a more right-skewed distribution. We therefore simulate murder rates from a gamma distribution to understand how the size and power of the two tests are affected when the data is no longer normal.
 The gamma distribution is defined as:
-f(x)=β^α/(Γ(α)) x^(α-1) e^(-βx)
-Where x>0 and α>0,β>0. In this case “alpha” represents the shape of the distribution and “beta” represents the rate of the distribution. Importantly, the mean and variance of a gamma distribution is given by:
-E[x]=α/β,Var[x]=  α/β^2 
+
+$$f(x) = \frac{\beta ^ {\alpha}}{\Gamma(\alpha)} x^{\alpha - 1} e^{-\beta x}$$
+
+where $x > 0$ and $\alpha >0, \beta > 0$.
+
+In this case “alpha” represents the shape of the distribution and “beta” represents the rate of the distribution. Importantly, the mean and variance of a gamma distribution is given by:
+
+$$\mathbb{E}[x] = \frac{\alpha}{\beta}, ~ ~ Var[x] = \frac{\alpha}{\beta^2}$$
+
 In particular, for given gamma parameters, we assess how the sample size affects the power and size of each test. However, if the sample size is sufficiently large, it will not matter if the data violates normality because, by the central limit theorem, the means will be normally distributed. In this case the sampling distribution for the t-statistic will be standard normally distributed and p-values will be valid. We find that this is generally the case for samples of size as low as 10. The more unusual the distribution of the data is and the less it resembles a normal distribution, the larger the sample size needs to be to ensure a stable test size and high power.
+
+```{r}
+#3) Scenario 3
+
+#Apply the function to Gamma Distributions with different parameters
+G1 <- gammaFun(par1 = c(4, 100),par2 = c(2, 100), K = 100, R = 1000, N = 10)
+G2 <- gammaFun(par1 = c(4, 100),par2 = c(2, 100), K = 100, R = 1000, N = 100)
+G3 <- gammaFun(par1 = c(4, 100),par2 = c(2, 100), K = 100, R = 1000, N = 1000)
+G4 <- gammaFun(par1 = c(3.2, 100),par2 = c(2.8, 100), K = 100, R = 1000, N = 10)
+G5 <- gammaFun(par1 = c(3.2, 100),par2 = c(2.8, 100), K = 100, R = 1000, N = 100)
+G6 <- gammaFun(par1 = c(3.2, 100),par2 = c(2.8, 100), K = 100, R = 1000, N = 1000)
+
+#Collect the results in a dataframe for comparison
+gammaResults <- rbind(G1, G2, G3, G4, G5, G6)
+gammaResults
+#Plot each simulated gamma distribution against the South data
+hist(cSouthRate, xlab = "Murder Rate", main = "South Region Murder Rate 
+     Distribution", freq = FALSE)
+lines(density(rgamma(10000, 4.417, 100)), col = 'blue')
+lines(density(rgamma(10000, 5, 100)), col = 'red')
+lines(density(rgamma(10000, 4.417, 110)), col = 'green')
+#Plot each simulated gamma distribution against the North East data
+hist(cNorthRate, xlab = "Murder Rate", main = "North East Region Murder
+     Rate Distribution", freq = FALSE)
+lines(density(rgamma(10000, 1.848, 100)), col = 'blue')
+lines(density(rgamma(10000, 2, 100)), col = 'red')
+lines(density(rgamma(10000, 1.848, 110)), col = 'green')
+#Graph to show changes in the two simulated gamma distributions
+plot(density(rgamma(10000, 4.417, 100)), col = 'blue', xlab = 'Murder Rate', 
+  main = 'Different Gamma Distributions Simulated for the Regions', 
+  xlim = c(0, 0.12), ylim = c(0, 45), lwd = 2)
+lines(density(rgamma(10000, 5, 100)), col = 'red', lwd = 2)
+lines(density(rgamma(10000, 4.417, 110)), col = 'green', lwd = 2)
+lines(density(rgamma(10000, 1.848, 100)), col = 'blue', lty = 2, lwd = 2)
+lines(density(rgamma(10000, 2, 100)), col = 'red', lty = 2, lwd = 2)
+lines(density(rgamma(10000, 1.1, 48)), col = 'green', lty = 2, lwd = 2)
+```
 
 Table 3- Power and size for data simulated under different probability distributions
 Gamma Parameters	Randomization Size	Randomization Power	t-test Size	t-test Power
@@ -165,6 +302,14 @@ We get an approximate distribution of the test statistc that is non-parametric h
 In particular, given the shape of the histogram when plotting murder rates, we use variants of the gamma distribution, including the chi-squared distribution to assess how the power and size of these tests alter when the data have different distirbutions.
 Whilst the t-test may not be valid for non-normal data, if the sample size is large enough then the t-test will be robust due to the central limit theorem. If the data is non-normal, then 
 Generally, we see that the two-sided t-test tends to outperform the randomization test, except when the data is gamma distributed and no longer normal. Other methods could also have been used to assess the small sample properties of the two tests when the variance of each sample is different, when the variance increases so that there is greater overlap in the distributions of each region, or if other non-normal distributions were used to simulate the data.
+
+Mention profiling of the code and how we have gone about this
+
+```{r}
+# Set seed for reproducibility
+set.seed(1234)
+
+```
 
 Randomization tests can be extended to a plethora of scenarios. 
 
@@ -223,124 +368,3 @@ https://stats.stackexchange.com/questions/339759/how-can-the-central-limit-theor
 A Normal distribution actually seems a reasonable assumption. The number of murders for each state is the addition of the number of murders at much more local levels, such as by county. Many factors will also impact on the number of murders. Therefore the total number of murders across states can be seen as the sum of many individual factors, therefore it is reasonable to assume an approximately normal distribution Of course, one caveat of this is that we can't have negative murders and by the continuous nature of the normal distribution, this will always be theoretically possible, even for a large mean estimate and small variance. 
 
 When is the data from, i.e. what time period and what is the original, credible source of the data?
-
-```{r}
-#We consider the distributional properties of the original murder rates data
-#to inform the properties of the simulated data
-#Plot the distribution of the original data for each region
-cSouthRate <- dtMurders[region == "South", ]$Rate
-cNorthRate <- dtMurders[region == "North", ]$Rate
-hist(cSouthRate, xlab = "Murder Rate", 
-     main = "South Region Murder Rate Distribution")
-hist(cNorthRate, xlab = "Murder Rate", main = "North East Region Murder
-     Rate Distribution")
-#Mean murder rates for each region
-mean(cSouthRate)
-mean(cNorthRate)
-#Variance of murder rates for each region
-var(cSouthRate)
-var(cNorthRate)
-# kable these summary statistics together into a table
-
-#1) Scenario 1
-
-#Use the sampSizeFun function to calculate power and size for samples of
-#increasing size
-n2 <- sampSizeFun(N = 2, K = 200, R = 500)
-n3 <- sampSizeFun(N = 3, K = 200, R = 500)
-n4 <- sampSizeFun(N = 4, K = 200, R = 500)
-n5 <- sampSizeFun(N = 5, K = 200, R = 500)
-n10 <- sampSizeFun(N = 10, K = 200, R = 500)
-n20 <- sampSizeFun(N = 20, K = 200, R = 500)
-n50 <- sampSizeFun(N = 50, K = 200, R = 500)
-n100 <- sampSizeFun(N = 100, K= 200, R = 500)
-n200 <- sampSizeFun(N = 200, K = 200, R = 500)
-n500 <- sampSizeFun(N = 500, K = 200, R = 500)
-n1000 <- sampSizeFun(N = 1000, K = 200, R = 500)
-
-#Plot sample size and Power for both tests
-#vector of sample sizes
-N <- c(5, 10, 20, 50, 100, 200, 500, 1000)
-#dataframe of test powers and sizes
-SampRes <- rbind(n5, n10, n20, n50, n100, n200, n500, n1000)
-SampRes
-#Plot of test power against sample size
-ggplot() + geom_point(aes(x = N, y = SampRes$rPower, 
-  col = 'Randomization Test'), size = 3) + geom_point(aes(x = N, 
-  y = SampRes$tPower, col = 't-test'), size = 3) + 
-  labs(title = 'Test Power for Increasing Sample Size', x = 'Sample Size', 
-  y = 'Power') + geom_line(aes(x = N, y = SampRes$rPower, 
-  col = 'Randomization Test'), size = 1.2) + geom_line(aes(x = N, 
-  y = SampRes$tPower, col = 't-test'), size = 1.2)
-#Plot of test size against sample size
-ggplot() + 
-  geom_point(aes(x = N, y = SampRes$rSize, col = 'Randomization Test'), size = 2) + 
-  geom_point(aes(x = N, y = SampRes$tSize, col = 't-test'), size = 2) + 
-  labs(title = 'Test Size for Increasing Sample Size', x = 'Sample Size', 
-       y = 'Test Size') + 
-  geom_line(aes(x = N, y = SampRes$rSize, col = 'Randomization Test'), size = 1) + 
-  geom_line(aes(x = N, y = SampRes$tSize, col = 't-test'), size = 1)
-
-#2) Scenario 2
-
-#Use the diffMeansFun function to calculate power and size for samples 
-#with increasing differences in means
-D0 <- diffMeansFun(diff = 0, K= 200, R= 1000)
-D1 <- diffMeansFun(diff = 0.0025, K = 200, R = 1000)
-D2 <- diffMeansFun(diff = 0.005, K = 200, R = 1000)
-D3 <- diffMeansFun(diff = 0.0075, K = 200, R = 1000)
-D4 <- diffMeansFun(diff = 0.01, K = 200, R = 1000)
-D5 <- diffMeansFun(diff = 0.0125, K = 200, R = 1000)
-D6 <- diffMeansFun(diff = 0.015, K = 200, R = 1000)
-D7 <- diffMeansFun(diff = 0.0175, K = 200, R = 1000)
-D8 <- diffMeansFun(diff = 0.02, K = 200, R = 1000)
-#vector of mean differences
-S <- c(0.0, 0.0025, 0.005, 0.0075, 0.01, 0.0125, 0.015, 0.0175, 0.02)
-#dataframe of test powers and sizes
-diffRes <- rbind(D0, D1, D2, D3, D4, D5, D6, D7, D8)
-diffRes
-#Plot how power changes with increasing effect size
-ggplot() + 
-  geom_point(aes(x = S, y = diffRes$rPower, col = 'Randomization Test'), size = 2) + 
-  geom_point(aes(x = S, y = diffRes$tPower, col = 't-test'), size = 2) + 
-  labs(title = 'Test Power for Increasing Effect Size', x = 'Sample Size', 
-    y = 'Power') + 
-  geom_line(aes(x = S, y = diffRes$rPower, col = 'Randomization Test'), size = 1) + 
-  geom_line(aes(x = S, y = diffRes$tPower, col = 't-test'), size = 1)
-
-
-#3) Scenario 3
-
-#Apply the function to Gamma Distributions with different parameters
-G1 <- gammaFun(par1 = c(4, 100),par2 = c(2, 100), K = 100, R = 1000, N = 10)
-G2 <- gammaFun(par1 = c(4, 100),par2 = c(2, 100), K = 100, R = 1000, N = 100)
-G3 <- gammaFun(par1 = c(4, 100),par2 = c(2, 100), K = 100, R = 1000, N = 1000)
-G4 <- gammaFun(par1 = c(3.2, 100),par2 = c(2.8, 100), K = 100, R = 1000, N = 10)
-G5 <- gammaFun(par1 = c(3.2, 100),par2 = c(2.8, 100), K = 100, R = 1000, N = 100)
-G6 <- gammaFun(par1 = c(3.2, 100),par2 = c(2.8, 100), K = 100, R = 1000, N = 1000)
-
-#Collect the results in a dataframe for comparison
-gammaResults <- rbind(G1, G2, G3, G4, G5, G6)
-gammaResults
-#Plot each simulated gamma distribution against the South data
-hist(SouthData$rate, xlab = "Murder Rate", main = "South Region Murder Rate 
-     Distribution", freq = FALSE)
-lines(density(rgamma(10000, 4.417, 100)), col = 'blue')
-lines(density(rgamma(10000, 5, 100)), col = 'red')
-lines(density(rgamma(10000, 4.417, 110)), col = 'green')
-#Plot each simulated gamma distribution against the North East data
-hist(NorthData$rate, xlab = "Murder Rate", main = "North East Region Murder
-     Rate Distribution", freq = FALSE)
-lines(density(rgamma(10000, 1.848, 100)), col = 'blue')
-lines(density(rgamma(10000, 2, 100)), col = 'red')
-lines(density(rgamma(10000, 1.848, 110)), col = 'green')
-#Graph to show changes in the two simulated gamma distributions
-plot(density(rgamma(10000, 4.417, 100)), col = 'blue', xlab = 'Murder Rate', 
-  main = 'Different Gamma Distributions Simulated for the Regions', 
-  xlim = c(0, 0.12), ylim = c(0, 45), lwd = 2)
-lines(density(rgamma(10000, 5, 100)), col = 'red', lwd = 2)
-lines(density(rgamma(10000, 4.417, 110)), col = 'green', lwd = 2)
-lines(density(rgamma(10000, 1.848, 100)), col = 'blue', lty = 2, lwd = 2)
-lines(density(rgamma(10000, 2, 100)), col = 'red', lty = 2, lwd = 2)
-lines(density(rgamma(10000, 1.1, 48)), col = 'green', lty = 2, lwd = 2)
-```
