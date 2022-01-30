@@ -1,4 +1,17 @@
 
+# Initialize Environment --------------------------------------------------
+
+pathProj <- paste0("C:/Users/User/Documents/Projects/Data Science Projects/", 
+                   "statistical-power-analysis/")
+pathCode <- paste0(pathProj, "code/")
+
+# Source functions
+cFunSource <- c("results", "randomization", "help")
+for (i in cFunSource) {
+  source(paste0(pathCode, i, "-function.R"))
+}
+
+
 # Simulation Function -----------------------------------------------------
 
 # Function to assess performance of Two-Sample randomization and t-tests for 
@@ -6,13 +19,12 @@
 
 # Input function for SimulationFun, used to calculate p-values for the 
 # Randomization and t-test
-pValueFun <- function(){
-  # double assignment ensures object available outside function
-  PMatrix[i, 1] <<- randomFun(data = dtNew, K = K, colTest = "xTest", 
+pValueFun <- function(dtNew, K, N){
+  return(c(randomFun(data = dtNew, K = K, colTest = "xTest", 
                      colResponse = "xResponse", test.args = FALSE, 
-                     levels = c("A", "B"))
-  # Actual t-test p-value
-  PMatrix[i, 2] <<- t.test(dtNew[1:N, 2], dtNew[(N + 1):(2 * N), 2])$p.value
+                     levels = c("A", "B")), t.test(dtNew[1:N, 2], 
+                     dtNew[(N + 1):(2 * N), 2])$p.value))
+  
 }
 
 
@@ -52,8 +64,7 @@ SimulationFun <- function(N = 200, K = 1000, R = 100, alpha = 0.05,
       # Iterate sample creation for given sample size
       dtNew[, xResponse := ifelse(xTest == "A", rnorm(N, 0, sd), 
                                   rnorm(N, diff.means, sd))]
-      print(head(dtNew))
-      pValueFun()
+      PMatrix[i, ] <- pValueFun(dtNew, K, N)
     }
   }else if (distribution == "gamma") {
     # If shape or rate not specified, create defaults
@@ -71,13 +82,12 @@ SimulationFun <- function(N = 200, K = 1000, R = 100, alpha = 0.05,
       dtNew[, xResponse := ifelse(xTest == "A", 
                                   rgamma(N, shape = shape[1], rate = rate[1]), 
                                   rgamma(N, shape = shape[2], rate = rate[2]))]
-      pValueFun()
+      PMatrix[i, ] <- pValueFun(dtNew, K, N)
     }
   }else{
     stop("distribution must be either 'gaussian' or 'gamma'\n 
          default is gaussian if no distribution argument set")
   }
-  print(PMatrix)
   # return size and power of each test
   return(resultsFun(PMatrix, R, alpha))
 }

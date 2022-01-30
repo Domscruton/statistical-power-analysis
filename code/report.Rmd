@@ -13,7 +13,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r 1-initialize-session, echo = FALSE, message = FALSE, results = FALSE}
-packages <- c("data.table", "dslabs", "dplyr", "ggplot2")
+packages <- c("data.table", "dslabs", "dplyr", "ggplot2", "knitr")
 fun_check_packages <- function(x){
   # require returns warning (library returns error) and implicit True/False 
   # statement depending on whether package is available or not
@@ -30,10 +30,7 @@ pathProj <- paste0("C:/Users/User/Documents/Projects/Data Science Projects/",
 pathCode <- paste0(pathProj, "code/")
 
 # Source functions
-cFunSource <- c("results", "sample-size", "randomization", "help")
-for (i in cFunSource) {
-  source(paste0(pathCode, i, "-function.R"))
-}
+source(paste0(pathCode, "sample-size-function.R"))
 
 # Set seed for reproducibility
 set.seed(567)
@@ -153,24 +150,20 @@ Smaller samples may reduce the power of tests to reject the null. Such samples m
 ```{r}
 #Use the sampSizeFun function to calculate power and size for samples of
 #increasing size
-n2 <- SimulationFun(N = 2, K = 100, R = 100)
-n3 <- SimulationFun(N = 3, K = 200, R = 500)
-n4 <- SimulationFun(N = 4, K = 200, R = 500)
-n5 <- SimulationFun(N = 5, K = 200, R = 500)
-n10 <- SimulationFun(N = 10, K = 200, R = 500)
-n20 <- SimulationFun(N = 20, K = 200, R = 500)
-n50 <- SimulationFun(N = 50, K = 200, R = 500)
-n100 <- SimulationFun(N = 100, K= 200, R = 500)
-n200 <- SimulationFun(N = 200, K = 200, R = 500)
-n500 <- SimulationFun(N = 500, K = 200, R = 500)
-n1000 <- SimulationFun(N = 1000, K = 200, R = 500)
-
-#Plot sample size and Power for both tests
-#vector of sample sizes
-N <- c(5, 10, 20, 50, 100, 200, 500, 1000)
-#dataframe of test powers and sizes
-SampRes <- rbind(n5, n10, n20, n50, n100, n200, n500, n1000)
-SampRes
+# Sample sizes to simulate. Doubling saves computational time and
+# allows us to log-transform the scale
+cSampSize <- 2 ^ seq(1, 8)
+# storage datatable of results
+matResults1 <- matrix(NA, nrow = length(cSampSize), ncol = 5)
+matResults1[, 1] <- cSampSize
+colnames(matResults1) <- c("N", "rSizePower", "rAvgPValue",
+                           "tSizePower", "tAvgPValue")
+j <- 0
+for (i in cSampSize) {
+  j <- j + 1
+  matResults1[j, 2:5] <- sapply(SimulationFun(N = i, K = 10, R = 10), 
+                            "[[", 1)[2:5]
+}
 #Plot of test power against sample size
 ggplot() + geom_point(aes(x = N, y = SampRes$rPower, 
   col = 'Randomization Test'), size = 3) + geom_point(aes(x = N, 
@@ -235,17 +228,6 @@ ggplot() +
 
 In this case, we consider differing scenarios in which the 
 When considering the test size and power, we should consider that repetitions of 1000 are relatively low for testing the true power and size.
-
-Effect Size	Relative Effect Size	Randomization Power	t-test Power
-0	0	0.055	0.055
-0.0025		0.088	0.089
-0.005		0.178	0.181
-0.0075		0.374	0.380
-0.01		0.594	0.601
-0.0125		0.794	0.809
-0.015		0.907	0.918
-0.0175		0.967	0.970
-0.02		0.996	0.995
 
 For this question, it could be that there is a strong re-distribution of the murder rates between years and that 2010 is not representative of the long-run distributions in murder rates for each region. For example, it could be that states in the North East regions had a particularly low murder rate in 2010 compared to the long-run distribution of murder rates for each region. In this case, we may have a sample for 2010 that is at the tails of the long-run distribution for murder rates. The change in power as the difference in means increases is essentially what we would see if the variance of each sample was decreasing. In this case we get a test size of 0.057 for both the randomization test and two-sample t-test.
 
