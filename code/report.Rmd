@@ -12,9 +12,9 @@ output:
 knitr::opts_chunk$set(echo = FALSE)
 ```
 
-```{r 1-initialize-session, echo = FALSE, message = FALSE, results = FALSE}
+```{r 1-initialize-session, echo = FALSE, message = FALSE, results = FALSE, warning = FALSE}
 packages <- c("data.table", "dslabs", "dplyr", "ggplot2", 
-              "knitr", "rmarkdown")
+              "knitr", "rmarkdown", "ggpubr")
 fun_check_packages <- function(x){
   # require returns warning (library returns error) and implicit True/False 
   # statement depending on whether package is available or not
@@ -39,14 +39,13 @@ set.seed(cRandSeed)
 ```
 
 
-
 # 1 Introduction
 
-This report assesses how the size and power for the two-sample t-test and randomization test for the means of two samples vary under different scenarios. The three scenarios considered are changes in the sample size of test data, changes in the proportional difference in the means between the two samples and changes in the distributional form of the input data. In particular, given the nature of murder rates we consider that they have a gamma distribution with varying parameters. It is seen that the non-parametric randomization test is more robust when the data are no longer normal only at very small sample sizes (less than five for each group), however, the size and power of the two-sample t-test performs well for small samples and changes in the difference in means between the two regions.
+The Student's t-Test is a parametric test for assessing whether there is a statistically significant difference in the mean of two samples (and more generally for determining whether the mean of a sample differs in value to a constant or another sample mean)^[Student's t-test is used for inference when fitting parametric models such as the Gaussian Linear Model]. The test, however, places strong assumptions on the data, in particular that the mean of each sample is normally distributed. The Randomization test has been long-proposed as an alternative to the statistical t-test and has risen to promince in the age of computational Statistical Inference. 
 
-This report assesses how the size and power of a parametric (two-sample t-test) and non-parametric (randomization) test changes when the two samples of interest have changing properties. Those properties are changes in the sample size of the simulated samples, changes in the effect size (difference) between the means of the two samples and the consideration of gamma (non-normal) data. The context of this report is to consider whether murder rates are different between Southern and Northern states in the US. In particular, states in the North-Eastern region largely do not impose the death penalty for homicide and have lower rates of unemployment and poverty compared to the Southern States (Death Penalty Information Centre, 2019). The data considered is the murder rate per thousand in each state. 
+We consider how the size and power of the two-sample t-test and randomization test for the means of two samples vary under different scenarios. These include changes in sample size, variance and difference in mean between the samples. Further, deviations from normality are examined through the use of simulations from a Gamma distribution with varying shape and rate parameters. It is seen that the non-parametric randomization test is more robust to deviations from normality but that the t-test is asymptotically robust, measured via power and size. 
 
-In particular I would like to know whether my prior expectation of the murder rate being higher in Southern US states compared to Northern states is reasonable.
+As a motivating example, we also consider comparing murder rates between Southern and Northern US states; we would like to assess our a priori expectations that Southern states have higher homicide rates.
 
 Mention bootstrapping as something similar
 
@@ -96,12 +95,17 @@ __Randomization Test Algorithm__
 ## 2.3 Size and Power
 
 The murder rates data for the Southern and North Eastern regions have means of 0.04417 and 0.01848 and variances of 0.001138 and 0.000138, respectively. Given the low variance size which may induce the power of both tests to always be one, we consider a much greater variance of 0.1 for each sample so that there is clear ‘overlap’ in the distributions of murder rates for each region.
+
+Provide definitions of size and power as motivation for why we are using them as measures of test performance for randomization Vs t-test.
+
 We therefore start by assuming a somewhat unrealistic normal distribution given below:
 
 $$X_{i}^{(S)} \sim N(0.04417, 0.1) \\ X_{i}^{(N)} \sim N(0.01848, 0.1)$$
 
-X_(i,S)  ~ N(0.04417,0.1) and X_(i,NE)  ~ N(0.01848,0.1)
+$X_(i,S)  ~ N(0.04417,0.1)$ and $X_(i,NE)  ~ N(0.01848,0.1)$
+
 We now calculate the size and power of our parametric and non-parametric tests by numerical integration. This involves evaluating each test for many samples and calculating the proportion of tests in which the p-value is less than the significance level, α (in this paper we consider the standard significance level of 5%). Incorrectly rejecting H_0 when the null hypothesis is actually true is referred to as a “type 1 error” and is known as the size of the test. Given this, one would expect the size of the test to be similar to the significance level used.
+
 Conversely, the power of a test is the probability that we reject H_0 given that the null is false. Therefore, we would like tests that exhibit high power. The size and power of these tests will vary, depending on 
 
 To help interpretability of the data we consider the murder rate per million.
@@ -140,22 +144,15 @@ When is the data from, i.e. what time period and what is the original, credible 
 ? What about confounding
 
 ```{r}
-#We consider the distributional properties of the original murder rates data
-#to inform the properties of the simulated data
-#Plot the distribution of the original data for each region
-cSouthRate <- dtMurders[region == "South", ]$Rate
-cNorthRate <- dtMurders[region == "North", ]$Rate
-ggplot(dtMurders[region %in% c("South", "North")]) +
+pDens <- ggplot(dtMurders[region %in% c("South", "North")]) + 
   geom_density(aes(x = Rate, col = region))
-ggplot(dtMurders[region %in% c("South", "North")]) +
+pBox <- ggplot(dtMurders[region %in% c("South", "North")]) +
   geom_boxplot(aes(x = region, y = Rate))
-hist(cSouthRate, xlab = "Murder Rate", 
-     main = "South Region Murder Rate Distribution")
-hist(cNorthRate, xlab = "Murder Rate", main = "North East Region Murder
-     Rate Distribution")
-#Mean murder rates for each region
-dtMurders[, .(MurderRate = mean(Rate), Variance = var(Rate)), 
-                by = region]
+ggpubr::ggarrange(pDens, pBox, nrow = 1, ncol = 2)
+
+# Mean murder rates for each region
+kable(dtMurders[, .(Obs = .N, MurderRate = mean(Rate), Variance = var(Rate)), 
+                by = region], format = "markdown")
 ```
 
 <div class="alert alert-info">
@@ -175,6 +172,9 @@ Given that repeating the randomization function many times can be computationall
 ## 4.1 Scenario 1 – Sample Size
 
 Smaller samples may reduce the power of tests to reject the null. Such samples may contain values far in the tails of the respective distributions and thus affect the size and power of these tests. We therefore consider the size and power of the two tests for samples of increasing size.
+Simply calculating the mean of . Naturally we could increase the sample size and hence the power fo the test by simply considering that the number of murders in each state is the sum of murders for the counties that constitute each state. 
+
+https://stats.stackexchange.com/questions/339759/how-can-the-central-limit-theorem-hold-for-distributions-which-have-limits-on-th
 
 ```{r}
 #Use the sampSizeFun function to calculate power and size for samples of
@@ -354,17 +354,6 @@ for (i in 1:nrow(matGamma)) {
 # lines(density(rgamma(10000, 1.1, 48)), col = 'green', lty = 2, lwd = 2)
 ```
 
-Table 3- Power and size for data simulated under different probability distributions
-Gamma Parameters	Randomization Size	Randomization Power	t-test Size	t-test Power
-Alpha= , beta=				
-Alpha= , beta=				
-Alpha=, beta=				
-50				
-100				
-200				
-500				
-1000			
-
 <div class="alert alert-info">
   <strong>Central Limit Theorem when the Support is not the Whole Real Line</strong> 
   
@@ -397,7 +386,8 @@ Randomization tests can be extended to a plethora of scenarios.
 
 This report has illustrated how test power and size change for the two tests as the samples upon which they act alter.
 
-# 5 References
+
+__References__
 
 Statistics How To. (2019). Parametric and Non -Parametric Data. Retrieved from https://www.statisticshowto.datasciencecentral.com/parametric-and-non-parametric-data/.
 
@@ -413,9 +403,3 @@ Bartlett, J. (September 28, 2013). The t-test and Robustness to Non-Normality. R
 Lehman, E. (1999). Elements of Large Sample Theory. Springer-Verlag, New York.
 
 DeGroot, M., Schervish, M. (2012). Probability and Statistics (4th Ed.). Pearson Education.
-
-
-Simply calculating the mean of . Naturally we could increase the sample size and hence the power fo the test by simply considering that the number of murders in each state is the sum of murders for the counties that constitute each state. 
-
-https://stats.stackexchange.com/questions/339759/how-can-the-central-limit-theorem-hold-for-distributions-which-have-limits-on-th
-
