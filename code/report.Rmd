@@ -1,7 +1,7 @@
 ---
 title: "Statistical Power Analysis"
 author: "Dominic Scruton"
-date: "December 2021"
+date: "February 2022"
 output:
   html_document:
     toc: true
@@ -9,11 +9,12 @@ output:
 ---
 
 ```{r setup, include = FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = FALSE)
 ```
 
 ```{r 1-initialize-session, echo = FALSE, message = FALSE, results = FALSE}
-packages <- c("data.table", "dslabs", "dplyr", "ggplot2", "knitr")
+packages <- c("data.table", "dslabs", "dplyr", "ggplot2", 
+              "knitr", "rmarkdown")
 fun_check_packages <- function(x){
   # require returns warning (library returns error) and implicit True/False 
   # statement depending on whether package is available or not
@@ -33,18 +34,11 @@ pathCode <- paste0(pathProj, "code/")
 source(paste0(pathCode, "sample-size-function.R"))
 
 # Set seed for reproducibility
-set.seed(567)
+cRandSeed <- 567
+set.seed(cRandSeed)
 ```
 
-```{r 2-prepare-data}
-data("murders")
-dtMurders <- as.data.table(murders)[grepl("south|North", 
-              region, ignore.case = TRUE), ]
-dtMurders[grepl("North", region, ignore.case = TRUE), 
-          region := "North"]
-# Calculate murder rate per million to adjust for exposure
-dtMurders[, Rate := 1000000 * total / population]
-```
+
 
 # 1 Introduction
 
@@ -67,15 +61,27 @@ Because the data are not paired, we consider a two-sample t-test to assess wheth
 	The observations are independent
 	Data and sample means are normally distributed
 	Data from the two samples have equal variances
-For large samples, the two-sample t-test is reasonably robust to deviances from normality.
+For large samples, the two-sample t-test is reasonably robust to deviances from normality, as attested by the __Central Limit Theorem (CLT)__.
 
 ## 2.2 Randomization Test
 
 Randomization tests tend to be more useful when we have fewer parameters but here we have a sample of 1000 items. We perform two-sided randomization tests. Under H_0, all permutations of the data are equally likely. That is, under the null, both regions have the same distiribution, hence we can swap their labels for 
 
+Fisher suggested using _permutations_ of the data. The Data is randomly sampled into the two groups under the Null hypothesis that they have the same mean (therefore it is valid to randomly sample from the two groups to calculate an overall mean since we assume both samples are generated from a distribution with the same mean). This is done some large number $B$ times, yielding permutation t-values $t_1^*, t_2^*, ..., t_B^*$. The two-sided permutation significance level for the original value $t$ is then the proportion of the $t_i^*$ values exceeding $t$ in absolute value:
+
+$${|t_i^*| \geq |t|} / B$$
+
 given murder rates and calculate a t-distribution for the t-statistics under this null. The purpose of the randomization test is to generate a distribution of the t-statistic under the null hypothesis that there is no difference in mean murder rate of the two regions. Randomization tests may be particularly useful when the distribution of the data is strongly different to that of a normal distribution and the sample size is small.
 
 Permuting the data is equivalent to shuffle all labels for the groups in which observations lie in around. 
+
+<div class="alert alert-info">
+  <strong>The caveats of p-values</strong> 
+  
+  A _p-value_ is the samllest level $\alpha_0$ such that we would reject the null-hypothesis at level $\alpha_0$ with the observed data. This is the probability of seeing a test statistic at least as extreme as the one observed, under the Null hypothesis that the test statistic came from the null distribution. An experimenter who rejects a null hypothesis iff the p-value is at most $\alpha_0$ is using a test with level of significance $\alpha_0$.
+  
+  The choice of significance threshold, $\alpha_0$, for rejection of the Null hypothesis is arbitrary. Typically we take $\alpha_0 = 0.05$ but by definition this yields a type-1 error (incorrectly reject the null hypothesis) with probability 0.05. 
+</div>
 
 __Randomization Test Algorithm__
 
@@ -104,7 +110,32 @@ We simulate data under different scenarios to create a sample and then do this 1
 
 # 3 United States Murder Rates
 
+```{r 2-prepare-data, results = FALSE}
+data("murders")
+dtMurders <- as.data.table(murders)[grepl("south|North", 
+              region, ignore.case = TRUE), ]
+dtMurders[grepl("North", region, ignore.case = TRUE), 
+          region := "North"]
+
+```
+
+```{r 3-murder-rate-table}
+# Calculate murder rate per million to adjust for exposure
+rmarkdown::paged_table(dtMurders[, Rate := 1000000 * total / population])
+```
+
+
+## 3.1 Exploratory Data Analysis
+
 A more appropriated boxplot would also appear to conclude that murder rates are lower in Northern states than Southern States. However we prefer a formal statistical test to assess our hypothesis and to quantify our uncertainty about such conclusions.
+
+Simply calculating the mean of . Naturally we could increase the sample size and hence the power fo the test by simply considering that the number of murders in each state is the sum of murders for the counties that constitute each state. 
+
+https://stats.stackexchange.com/questions/339759/how-can-the-central-limit-theorem-hold-for-distributions-which-have-limits-on-th
+
+A Normal distribution actually seems a reasonable assumption. The number of murders for each state is the addition of the number of murders at much more local levels, such as by county. Many factors will also impact on the number of murders. Therefore the total number of murders across states can be seen as the sum of many individual factors, therefore it is reasonable to assume an approximately normal distribution Of course, one caveat of this is that we can't have negative murders and by the continuous nature of the normal distribution, this will always be theoretically possible, even for a large mean estimate and small variance. 
+
+When is the data from, i.e. what time period and what is the original, credible source of the data?
 
 ? What about confounding
 
@@ -123,8 +154,8 @@ hist(cSouthRate, xlab = "Murder Rate",
 hist(cNorthRate, xlab = "Murder Rate", main = "North East Region Murder
      Rate Distribution")
 #Mean murder rates for each region
-kable(dtMurders[, .(MurderRate = mean(Rate), Variance = var(Rate)), 
-                by = region], format = "rmarkdown")
+dtMurders[, .(MurderRate = mean(Rate), Variance = var(Rate)), 
+                by = region]
 ```
 
 <div class="alert alert-info">
@@ -141,95 +172,132 @@ kable(dtMurders[, .(MurderRate = mean(Rate), Variance = var(Rate)),
 
 Given that repeating the randomization function many times can be computationally time-consuming, we consider randomization tests of 200 samples and repeat the tests 1000 times.
 
-## 3.1 Scenario 1 – Change the Sample Size
+## 4.1 Scenario 1 – Sample Size
 
 Smaller samples may reduce the power of tests to reject the null. Such samples may contain values far in the tails of the respective distributions and thus affect the size and power of these tests. We therefore consider the size and power of the two tests for samples of increasing size.
-
-#1) Scenario 1
 
 ```{r}
 #Use the sampSizeFun function to calculate power and size for samples of
 #increasing size
 # Sample sizes to simulate. Doubling saves computational time and
 # allows us to log-transform the scale
-cSampSize <- 2 ^ seq(1, 8)
+cSampSize <- 2 ^ seq(1, 10)
 # storage datatable of results
 matResults1 <- matrix(NA, nrow = length(cSampSize), ncol = 5)
 matResults1[, 1] <- cSampSize
-colnames(matResults1) <- c("N", "rSizePower", "rAvgPValue",
+colnames(matResults1) <- c("Var", "rSizePower", "rAvgPValue",
                            "tSizePower", "tAvgPValue")
+# create identical matrices for different scenarios
+for (i in 2:4) {
+  eval(call("<-", paste0("matResults", i), matResults1))
+}
+
 j <- 0
 for (i in cSampSize) {
   j <- j + 1
-  matResults1[j, 2:5] <- sapply(SimulationFun(N = i, K = 10, R = 10), 
+  matResults1[j, 2:5] <- sapply(SimulationFun(N = i, K = 10, R = 10, 
+                                              diff.means = 0.1), 
                             "[[", 1)[2:5]
 }
 #Plot of test power against sample size
-ggplot() + geom_point(aes(x = N, y = SampRes$rPower, 
-  col = 'Randomization Test'), size = 3) + geom_point(aes(x = N, 
-  y = SampRes$tPower, col = 't-test'), size = 3) + 
-  labs(title = 'Test Power for Increasing Sample Size', x = 'Sample Size', 
-  y = 'Power') + geom_line(aes(x = N, y = SampRes$rPower, 
-  col = 'Randomization Test'), size = 1.2) + geom_line(aes(x = N, 
-  y = SampRes$tPower, col = 't-test'), size = 1.2)
+# Could turn these plot calls into a function
+ggplot(as.data.frame(matResults1)) + 
+  geom_point(aes(x = Var, y = rAvgPValue, col = 'Randomization Test'),
+             size = 3) + 
+  geom_point(aes(x = Var, y = tAvgPValue, col = 't-test'), size = 3) + 
+  labs(title = 'Test Power by Sample Size', x = 'Sample Size', 
+  y = 'Power') + geom_line(aes(x = Var, y = rAvgPValue, 
+  col = 'Randomization Test'), size = 1.2) + geom_line(aes(x = Var, 
+  y = tAvgPValue, col = 't-test'), size = 1.2) + 
+  scale_x_continuous(trans = 'log2')
 #Plot of test size against sample size
-ggplot() + 
-  geom_point(aes(x = N, y = SampRes$rSize, col = 'Randomization Test'), size = 2) + 
-  geom_point(aes(x = N, y = SampRes$tSize, col = 't-test'), size = 2) + 
-  labs(title = 'Test Size for Increasing Sample Size', x = 'Sample Size', 
+ggplot(as.data.frame(matResults1)) + 
+  geom_point(aes(x = Var, y = rSizePower, col = 'Randomization Test'), size = 2) + 
+  geom_point(aes(x = Var, y = tSizePower, col = 'T-test'), size = 2) + 
+  labs(title = 'Test Size for Increasing Sample Size', x = 'Log Sample Size', 
        y = 'Test Size') + 
-  geom_line(aes(x = N, y = SampRes$rSize, col = 'Randomization Test'), size = 1) + 
-  geom_line(aes(x = N, y = SampRes$tSize, col = 't-test'), size = 1)
+  geom_line(aes(x = Var, y = rSizePower, col = 'Randomization Test'), size = 1) + 
+  geom_line(aes(x = Var, y = tSizePower, col = 't-test'), size = 1)
 ```
 
 Table 1- Size and Power for Increasing Sample Size
 Sample Size	Randomization Size	Randomization Power	t-test Size	t-test Power
-5	0.061	0.077	0.040	0.050
-10	0.052	0.085	0.050	0.084
-20	0.046	0.124	0.046	0.130
-50	0.034	0.238	0.024	0.232
-100	0.054	0.424	0.048	0.422
 
-200	0.040	0.738	0.040	0.740
-500	0.044	0.974	0.042	0.978
-1000	0.064	1.000	0.066	1.000
+```{r}
+kable(matResults1, format = "markdown")
+```
 
 We see that the power of the randomization sample increases as the number of randomizaed sample we calculate increases. Here we only simulate for randomized samples of size 500 given the computational time required for this process.
+
+## 4.2 Scenario 2 - Difference in Means
 
 ```{r}
 #2) Scenario 2
 
 #Use the diffMeansFun function to calculate power and size for samples 
 #with increasing differences in means
-D0 <- diffMeansFun(diff = 0, K= 200, R= 1000)
-D1 <- diffMeansFun(diff = 0.0025, K = 200, R = 1000)
-D2 <- diffMeansFun(diff = 0.005, K = 200, R = 1000)
-D3 <- diffMeansFun(diff = 0.0075, K = 200, R = 1000)
-D4 <- diffMeansFun(diff = 0.01, K = 200, R = 1000)
-D5 <- diffMeansFun(diff = 0.0125, K = 200, R = 1000)
-D6 <- diffMeansFun(diff = 0.015, K = 200, R = 1000)
-D7 <- diffMeansFun(diff = 0.0175, K = 200, R = 1000)
-D8 <- diffMeansFun(diff = 0.02, K = 200, R = 1000)
-#vector of mean differences
-S <- c(0.0, 0.0025, 0.005, 0.0075, 0.01, 0.0125, 0.015, 0.0175, 0.02)
-#dataframe of test powers and sizes
-diffRes <- rbind(D0, D1, D2, D3, D4, D5, D6, D7, D8)
-diffRes
-#Plot how power changes with increasing effect size
-ggplot() + 
-  geom_point(aes(x = S, y = diffRes$rPower, col = 'Randomization Test'), size = 2) + 
-  geom_point(aes(x = S, y = diffRes$tPower, col = 't-test'), size = 2) + 
-  labs(title = 'Test Power for Increasing Effect Size', x = 'Sample Size', 
-    y = 'Power') + 
-  geom_line(aes(x = S, y = diffRes$rPower, col = 'Randomization Test'), size = 1) + 
-  geom_line(aes(x = S, y = diffRes$tPower, col = 't-test'), size = 1)
+cDiffMeans <- seq(0, 0.9, 0.1)
+j <- 0
+for (i in cDiffMeans) {
+  j <- j + 1
+  matResults2[j, 2:5] <- sapply(SimulationFun(N = 20, K = 10, R = 10, 
+                                              diff.means = i), 
+                            "[[", 1)[2:5]
+}
+
+# Plot results
+ggplot(as.data.frame(matResults2)) + 
+  geom_point(aes(x = Var, y = rAvgPValue, col = 'Randomization Test'),
+             size = 3) + 
+  geom_point(aes(x = Var, y = tAvgPValue, col = 't-test'), size = 3) + 
+  labs(title = 'Test Power by Sample Size', x = 'Sample Size', 
+  y = 'Power') + geom_line(aes(x = Var, y = rAvgPValue, 
+  col = 'Randomization Test'), size = 1.2) + geom_line(aes(x = Var, 
+  y = tAvgPValue, col = 't-test'), size = 1.2) + 
+  scale_x_continuous(trans = 'log2')
 
 ```
 
 In this case, we consider differing scenarios in which the 
 When considering the test size and power, we should consider that repetitions of 1000 are relatively low for testing the true power and size.
 
+
+## 4.3 Scenario 3 - Variance
+
+When we increase the variance of each distribution, we a similar result as when we reduce the difference in means between the two distributions
+
+```{r variance}
+# Scenario 3
+cVar <- 2 ^ seq(-4, 5)
+j <- 0
+for (i in cVar) {
+  j <- j + 1
+  matResults3[j, 2:5] <- sapply(SimulationFun(N = 20, K = 10, R = 10, sd = i), 
+                            "[[", 1)[2:5]
+}
+
+```
+
+```{r}
+kable(matResults3, format = "markdown")
+```
+
+Question- how close are the results of our randomization test relative to those of the t-test (i.e. is Normality a reasonable assumption?)
+
+
+## 4.4 Scenario 4 - Deviation from Normality
+
 For this question, it could be that there is a strong re-distribution of the murder rates between years and that 2010 is not representative of the long-run distributions in murder rates for each region. For example, it could be that states in the North East regions had a particularly low murder rate in 2010 compared to the long-run distribution of murder rates for each region. In this case, we may have a sample for 2010 that is at the tails of the long-run distribution for murder rates. The change in power as the difference in means increases is essentially what we would see if the variance of each sample was decreasing. In this case we get a test size of 0.057 for both the randomization test and two-sample t-test.
+
+Fisherian methodology has faced criticism for its over-reliance on normal sampling assumptions. p-values are calculated based on theoretical t-dstributions, which depend on Gaussian, or Normal, assumptions. 
+
+<div class="alert alert-info">
+  <strong>Is Normality a Reasonable Assumption?</strong> 
+  
+  In many cases it may not intuitively feel as though our data is normally distibuted for this assumption in the Two-Sample T-Test to seem feasible. However, the _Central Limit Theorem_ ( __CLT__ ) tells us that the sample mean $\bar{X}_n$ of a large sample of random variables with mean $\mu$ and finite variance $\sigma^2$ has approximately a normal distribution with mean $\mu$ and variance $\frac{\sigma^2}{n}$.
+  
+  This result helps to justify the use of the normal distribution as a model for many variables that can be thought of as being made up of many independent parts. The CLT is therefore a formal statement of how normal distributions can approximate distributions of general sums or averages of i.i.d. radm variables. For example, a person's height is influenced by many random factors. If the height of each person is determined by adding the values of these individual factors, then the distribution of the heights of a large number of persons will be approximately normally distributed. In general, the CLT indictes that the distribution of the sum of many random variables can be approximately normal, even though the distribtuion of each random variable in the sum differs from normality.
+</div>
 
 So far, we have simulated murder rates for both regions using normal distributions. However, given the nature and distribution of murder rates (figure ?), it is clear that a normal distribution is not appropriate 
 
@@ -247,40 +315,43 @@ $$\mathbb{E}[x] = \frac{\alpha}{\beta}, ~ ~ Var[x] = \frac{\alpha}{\beta^2}$$
 In particular, for given gamma parameters, we assess how the sample size affects the power and size of each test. However, if the sample size is sufficiently large, it will not matter if the data violates normality because, by the central limit theorem, the means will be normally distributed. In this case the sampling distribution for the t-statistic will be standard normally distributed and p-values will be valid. We find that this is generally the case for samples of size as low as 10. The more unusual the distribution of the data is and the less it resembles a normal distribution, the larger the sample size needs to be to ensure a stable test size and high power.
 
 ```{r}
-#3) Scenario 3
+#3) Scenario 4
+# Random gamma parameters
+matGamma <- data.frame(rate1 = runif(10, 0, 10), rate2 = runif(10, 0, 10), 
+                   shape1 = runif(10, 0, 10), shape2 = runif(10, 0, 10))
 
-#Apply the function to Gamma Distributions with different parameters
-G1 <- gammaFun(par1 = c(4, 100),par2 = c(2, 100), K = 100, R = 1000, N = 10)
-G2 <- gammaFun(par1 = c(4, 100),par2 = c(2, 100), K = 100, R = 1000, N = 100)
-G3 <- gammaFun(par1 = c(4, 100),par2 = c(2, 100), K = 100, R = 1000, N = 1000)
-G4 <- gammaFun(par1 = c(3.2, 100),par2 = c(2.8, 100), K = 100, R = 1000, N = 10)
-G5 <- gammaFun(par1 = c(3.2, 100),par2 = c(2.8, 100), K = 100, R = 1000, N = 100)
-G6 <- gammaFun(par1 = c(3.2, 100),par2 = c(2.8, 100), K = 100, R = 1000, N = 1000)
+j <- 0
+for (i in 1:nrow(matGamma)) {
+  j <- j + 1
+  matResults4[j, 2:5] <- 
+    sapply(SimulationFun(N = 20, K = 10, R = 10,
+      shape = unlist(matGamma[i, 1:2]), rate = unlist(matGamma[i, 3:4]), 
+      distribution = "gamma"), "[[", 1)[2:5]
+}
 
-#Collect the results in a dataframe for comparison
-gammaResults <- rbind(G1, G2, G3, G4, G5, G6)
-gammaResults
+# Potentially 2-dimensional plots for comparing alpha and beta- consider the effective variance and also the mean of the gamm distribution, alpha/beta. Potentially plot the pvalue as a overlay coloured variable
+
 #Plot each simulated gamma distribution against the South data
-hist(cSouthRate, xlab = "Murder Rate", main = "South Region Murder Rate 
-     Distribution", freq = FALSE)
-lines(density(rgamma(10000, 4.417, 100)), col = 'blue')
-lines(density(rgamma(10000, 5, 100)), col = 'red')
-lines(density(rgamma(10000, 4.417, 110)), col = 'green')
-#Plot each simulated gamma distribution against the North East data
-hist(cNorthRate, xlab = "Murder Rate", main = "North East Region Murder
-     Rate Distribution", freq = FALSE)
-lines(density(rgamma(10000, 1.848, 100)), col = 'blue')
-lines(density(rgamma(10000, 2, 100)), col = 'red')
-lines(density(rgamma(10000, 1.848, 110)), col = 'green')
-#Graph to show changes in the two simulated gamma distributions
-plot(density(rgamma(10000, 4.417, 100)), col = 'blue', xlab = 'Murder Rate', 
-  main = 'Different Gamma Distributions Simulated for the Regions', 
-  xlim = c(0, 0.12), ylim = c(0, 45), lwd = 2)
-lines(density(rgamma(10000, 5, 100)), col = 'red', lwd = 2)
-lines(density(rgamma(10000, 4.417, 110)), col = 'green', lwd = 2)
-lines(density(rgamma(10000, 1.848, 100)), col = 'blue', lty = 2, lwd = 2)
-lines(density(rgamma(10000, 2, 100)), col = 'red', lty = 2, lwd = 2)
-lines(density(rgamma(10000, 1.1, 48)), col = 'green', lty = 2, lwd = 2)
+# hist(cSouthRate, xlab = "Murder Rate", main = "South Region Murder Rate 
+#      Distribution", freq = FALSE)
+# lines(density(rgamma(10000, 4.417, 100)), col = 'blue')
+# lines(density(rgamma(10000, 5, 100)), col = 'red')
+# lines(density(rgamma(10000, 4.417, 110)), col = 'green')
+# #Plot each simulated gamma distribution against the North East data
+# hist(cNorthRate, xlab = "Murder Rate", main = "North East Region Murder
+#      Rate Distribution", freq = FALSE)
+# lines(density(rgamma(10000, 1.848, 100)), col = 'blue')
+# lines(density(rgamma(10000, 2, 100)), col = 'red')
+# lines(density(rgamma(10000, 1.848, 110)), col = 'green')
+# #Graph to show changes in the two simulated gamma distributions
+# plot(density(rgamma(10000, 4.417, 100)), col = 'blue', xlab = 'Murder Rate', 
+#   main = 'Different Gamma Distributions Simulated for the Regions', 
+#   xlim = c(0, 0.12), ylim = c(0, 45), lwd = 2)
+# lines(density(rgamma(10000, 5, 100)), col = 'red', lwd = 2)
+# lines(density(rgamma(10000, 4.417, 110)), col = 'green', lwd = 2)
+# lines(density(rgamma(10000, 1.848, 100)), col = 'blue', lty = 2, lwd = 2)
+# lines(density(rgamma(10000, 2, 100)), col = 'red', lty = 2, lwd = 2)
+# lines(density(rgamma(10000, 1.1, 48)), col = 'green', lty = 2, lwd = 2)
 ```
 
 Table 3- Power and size for data simulated under different probability distributions
@@ -294,6 +365,14 @@ Alpha=, beta=
 500				
 1000			
 
+<div class="alert alert-info">
+  <strong>Central Limit Theorem when the Support is not the Whole Real Line</strong> 
+  
+  Naturally the murder rate cannot be negative. Therefore, the mean of the murder rate cannot be negative and must have the same support as the murder rate itself. This implies the assumption of a Normal distribution for $\bar{X}_n$ is invalid since the Normal distribution can have negative support. 
+ 
+</div>
+
+
 Problem with T-tests is they are _Parametric_ and therefore require assumptions about the distribution of the data (e.g. Normality) and assumptions about the distribution of the test statistic under the Null hypothesis (derived from assumptions about the distribution of the data).
 
 Randomization tests are similar to _Permutation tests_. Under a permutation test, we permute the values across the 2 groups, since under our null hypothesis there is no difference in the value of interest. We then calculate the test statistic for each permutation, giving us a distribution of the test statistic under the Null hypothesis. Randomization tests are like permutation tests, except that only a random subset of all the possible permutations are generated.
@@ -305,37 +384,13 @@ Generally, we see that the two-sided t-test tends to outperform the randomizatio
 
 Mention profiling of the code and how we have gone about this
 
-```{r}
-# Set seed for reproducibility
-set.seed(1234)
+There are 2 clear arguments about why we should believe the permutation significance level generated by randomization tests:
 
-```
+
+Randomization greatly strengthens the conclusions of a permutation test. In particular, _Experimental Randomization_ almost guarantees that confounding factors (age, weight, etc.) will be well-balanced between the treatment groups. Fisher's RCT (Randomized Control Trial) is still the gold standard for statistical inference in Medical trials. Randomization randomly assigns the experimental units to the possible treatment groups. 
+
 
 Randomization tests can be extended to a plethora of scenarios. 
-
-<div class="alert alert-info">
-  <strong>Is Normality a Reasonable Assumption?</strong> 
-  
-  In many cases it may not intuitively feel as though our data is normally distibuted for this assumption in the Two-Sample T-Test to seem feasible. However, the _Central Limit Theorem_ ( __CLT__ ) tells us that the sample mean $\bar{X}_n$ of a large sample of random variables with mean $\mu$ and finite variance $\sigma^2$ has approximately a normal distribution with mean $\mu$ and variance $\frac{\sigma^2}{n}$.
-  
-  This result helps to justify the use of the normal distribution as a model for many variables that can be thought of as being made up of many independent parts. The CLT is therefore a formal statement of how normal distributions can approximate distributions of general sums or averages of i.i.d. radm variables. For example, a person's height is influenced by many random factors. If the height of each person is determined by adding the values of these individual factors, then the distribution of the heights of a large number of persons will be approximately normally distributed. In general, the CLT indictes that the distribution of the sum of many random variables can be approximately normal, even though the distribtuion of each random variable in the sum differs from normality.
-</div>
-
-<div class="alert alert-info">
-  <strong>The caveats of p-values</strong> 
-  
-  A _p-value_ is the samllest level $\alpha_0$ such that we would reject the null-hypothesis at level $\alpha_0$ with the observed data. This is the probability of seeing a test statistic at least as extreme as the one observed, under the Null hypothesis that the test statistic came from the null distribution. An experimenter who rejects a null hypothesis iff the p-value is at most $\alpha_0$ is using a test with level of significance $\alpha_0$.
-  
-  The choice of significance threshold, $\alpha_0$, for rejection of the Null hypothesis is arbitrary. Typically we take $\alpha_0 = 0.05$ but by definition this yields a type-1 error (incorrectly reject the null hypothesis) with probability 0.05. 
-</div>
-
-
-<div class="alert alert-info">
-  <strong>Central Limit Theorem when the Support is not the Whole Real Line</strong> 
-  
-  Naturally the murder rate cannot be negative. Therefore, the mean of the murder rate cannot be negative and must have the same support as the murder rate itself. This implies the assumption of a Normal distribution for $\bar{X}_n$ is invalid since the Normal distribution can have negative support. 
- 
-</div>
 
 
 # 4 Conclusion
@@ -359,12 +414,8 @@ Lehman, E. (1999). Elements of Large Sample Theory. Springer-Verlag, New York.
 
 DeGroot, M., Schervish, M. (2012). Probability and Statistics (4th Ed.). Pearson Education.
 
-# Exploratory Data Analysis
 
 Simply calculating the mean of . Naturally we could increase the sample size and hence the power fo the test by simply considering that the number of murders in each state is the sum of murders for the counties that constitute each state. 
 
 https://stats.stackexchange.com/questions/339759/how-can-the-central-limit-theorem-hold-for-distributions-which-have-limits-on-th
 
-A Normal distribution actually seems a reasonable assumption. The number of murders for each state is the addition of the number of murders at much more local levels, such as by county. Many factors will also impact on the number of murders. Therefore the total number of murders across states can be seen as the sum of many individual factors, therefore it is reasonable to assume an approximately normal distribution Of course, one caveat of this is that we can't have negative murders and by the continuous nature of the normal distribution, this will always be theoretically possible, even for a large mean estimate and small variance. 
-
-When is the data from, i.e. what time period and what is the original, credible source of the data?
