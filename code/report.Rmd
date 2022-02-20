@@ -9,16 +9,16 @@ output:
 ---
 
 ```{r setup, include = FALSE}
-knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(echo = FALSE, fig.align = "center", fig.width = 9, fig.height = 4)
 ```
 
-```{r 1-initialize-session, echo = FALSE, message = FALSE, results = FALSE}
+```{r 1-initialize-session, echo = FALSE, message = FALSE, results = FALSE, warning = FALSE}
 packages <- c("data.table", "dslabs", "dplyr", "ggplot2", 
-              "knitr", "rmarkdown")
+              "knitr", "rmarkdown", "ggpubr")
 fun_check_packages <- function(x){
   # require returns warning (library returns error) and implicit True/False 
   # statement depending on whether package is available or not
-  # character.onlyenables use of character vector as object
+  # character.only enables use of character vector as object
   if(!require(x, character.only = TRUE)){
     install.packages(x, dependencies = TRUE)
     library(x, character.only = TRUE)
@@ -39,49 +39,58 @@ set.seed(cRandSeed)
 ```
 
 
-
 # 1 Introduction
 
-This report assesses how the size and power for the two-sample t-test and randomization test for the means of two samples vary under different scenarios. The three scenarios considered are changes in the sample size of test data, changes in the proportional difference in the means between the two samples and changes in the distributional form of the input data. In particular, given the nature of murder rates we consider that they have a gamma distribution with varying parameters. It is seen that the non-parametric randomization test is more robust when the data are no longer normal only at very small sample sizes (less than five for each group), however, the size and power of the two-sample t-test performs well for small samples and changes in the difference in means between the two regions.
+The Student's t-Test is a parametric test for assessing whether there is a statistically significant difference in the mean of two samples (and more generally for determining whether the mean of a sample differs in value to a constant or another sample mean)^[Student's t-test is used for inference when fitting parametric models such as the Gaussian Linear Model]. The test, however, places strong assumptions on the data, in particular that the mean of each sample is normally distributed. The Randomization test has been long-proposed as an alternative to the statistical t-test and has risen to prominence in the age of computational Statistical Inference. 
 
-This report assesses how the size and power of a parametric (two-sample t-test) and non-parametric (randomization) test changes when the two samples of interest have changing properties. Those properties are changes in the sample size of the simulated samples, changes in the effect size (difference) between the means of the two samples and the consideration of gamma (non-normal) data. The context of this report is to consider whether murder rates are different between Southern and Northern states in the US. In particular, states in the North-Eastern region largely do not impose the death penalty for homicide and have lower rates of unemployment and poverty compared to the Southern States (Death Penalty Information Centre, 2019). The data considered is the murder rate per thousand in each state. 
+We consider how the size and power of the two-sample t-test and randomization test for the means of two samples vary under different scenarios. These include changes in sample size, variance and difference in mean between the samples. Further, deviations from normality are examined through the use of simulations from a Gamma distribution with varying shape and rate parameters. It is seen that the non-parametric randomization test is more robust to deviations from normality but that the t-test is asymptotically robust, measured via power and size. 
 
-In particular I would like to know whether my prior expectation of the murder rate being higher in Southern US states compared to Northern states is reasonable.
-
-Mention bootstrapping as something similar
+As a motivating example, a comparison of murder rates between Southern and Northern US states is utilized; we would like to assess our prior expectations that Southern states have higher homicide rates.
 
 
 # 2 Methodology
 
-A parametric and non-parametric test are used to test whether there is a difference in means for the success rates for the two genders. For the given research question, the null hypothesis is that there is no difference between the success rates for men and women, whilst the alternative hypothesis is that there is a difference in means. This represents a two-sided test.
-
 ## 2.1 Two-Sample t-test
 
-Because the data are not paired, we consider a two-sample t-test to assess whether the means of the two regions; South and North East, are different. The two-sample t-test has three key assumptions:
-	The observations are independent
-	Data and sample means are normally distributed
-	Data from the two samples have equal variances
-For large samples, the two-sample t-test is reasonably robust to deviances from normality, as attested by the __Central Limit Theorem (CLT)__.
+Because the data are not paired, we consider a two-sample t-test to assess whether the mean homicide rate of the two regions; South and North East, are different. The two-sample t-test has three key assumptions:
+
+	- Observations sampled independently from the two populations being compared
+	
+	- Sample mean, $\bar{X}$ follows a normal distribution
+	
+	- Data from the two samples have equal variances^[The equal variance assumption can be dropped and is known as Welch's t-test]
+	
+For large samples, the two-sample t-test is reasonably robust to deviance from normality, as attested by the __Central Limit Theorem (CLT)__. 
+
+The two-sample t-test statistic is given by:
+
+$$t = \frac{\bar{X}_1 - \bar{X}_2}{S_p \sqrt{\frac{2}{n}}}$$
+
+where $S_p = \sqrt{\frac{S_{X_1}^2 + S_{X_2}^2}{2}}$ is the _Pooled Standard Deviation_. $n = n_1 + n_2$ Most two-sample t-tests are robust to all but the strongest deviations from these assumptions. 
+
+With different sample sizes we have:
+
+$$t = \frac{\bar{X}_1 - \bar{X}_2}{S_p \sqrt{\frac{1}{n_1} + \frac{1}{n_2}}}$$
+
+where the Pooled Standard deviation becomes:
+
+$$S_p = \sqrt{\frac{(n_1 - 1)S_{X_1}^2 + (n_2 - 1)S_{X_2}^2}{n_1 + n_2 - 2}}$$
+
+Relaxing the assumption of identical population variances for the two groups, we have Welch's t-test:
+
+$$t = \frac{\bar{X}_1 + \bar{X}_2}{S_P}$$
+
+where
+
+$$S_p = \sqrt{\frac{s_1^2}{n_1} + \frac{s_2^2}{n_2}}$$
+
+The $t.test$ function in R performs the Welch t-test by default, assuming different variances for the two samples.
 
 ## 2.2 Randomization Test
 
-Randomization tests tend to be more useful when we have fewer parameters but here we have a sample of 1000 items. We perform two-sided randomization tests. Under H_0, all permutations of the data are equally likely. That is, under the null, both regions have the same distiribution, hence we can swap their labels for 
+Fisher suggested using _permutations_ of the data to generate a numeric equivalent to the parametric t-test. The Data is randomly sampled into the two groups under the Null hypothesis that they have the same mean (therefore it is valid to randomly sample from the two groups to calculate an overall mean since we assume both samples are generated from a distribution with the same mean). This is done some large number $B$ times, yielding permutation t-values $t_1^*, t_2^*, ..., t_B^*$, generating a distribution of t-values under the Null Hypothesis. The two-sided permutation significance level for the original value $t$ is then the proportion of the $t_i^*$ values exceeding $t$ in absolute value:
 
-Fisher suggested using _permutations_ of the data. The Data is randomly sampled into the two groups under the Null hypothesis that they have the same mean (therefore it is valid to randomly sample from the two groups to calculate an overall mean since we assume both samples are generated from a distribution with the same mean). This is done some large number $B$ times, yielding permutation t-values $t_1^*, t_2^*, ..., t_B^*$. The two-sided permutation significance level for the original value $t$ is then the proportion of the $t_i^*$ values exceeding $t$ in absolute value:
-
-$${|t_i^*| \geq |t|} / B$$
-
-given murder rates and calculate a t-distribution for the t-statistics under this null. The purpose of the randomization test is to generate a distribution of the t-statistic under the null hypothesis that there is no difference in mean murder rate of the two regions. Randomization tests may be particularly useful when the distribution of the data is strongly different to that of a normal distribution and the sample size is small.
-
-Permuting the data is equivalent to shuffle all labels for the groups in which observations lie in around. 
-
-<div class="alert alert-info">
-  <strong>The caveats of p-values</strong> 
-  
-  A _p-value_ is the samllest level $\alpha_0$ such that we would reject the null-hypothesis at level $\alpha_0$ with the observed data. This is the probability of seeing a test statistic at least as extreme as the one observed, under the Null hypothesis that the test statistic came from the null distribution. An experimenter who rejects a null hypothesis iff the p-value is at most $\alpha_0$ is using a test with level of significance $\alpha_0$.
-  
-  The choice of significance threshold, $\alpha_0$, for rejection of the Null hypothesis is arbitrary. Typically we take $\alpha_0 = 0.05$ but by definition this yields a type-1 error (incorrectly reject the null hypothesis) with probability 0.05. 
-</div>
+$$|t_i^*| \geq \frac{|t|}{B}$$
 
 __Randomization Test Algorithm__
 
@@ -92,21 +101,37 @@ __Randomization Test Algorithm__
 3) Count the number of permutations, $m$, for which $T_k^{(R)} \geq T^{(Obs)}$
 4) p-value = $\frac{m}{K}$
 
+Randomization tests may be particularly useful when the distribution of the data is strongly different to that of a normal distribution and the sample size is small (such that the results of the Central Limit Theorem have a limited impact on the distribution of the mean).
+
+<div class="alert alert-info">
+  <strong>The caveats of p-values</strong> 
+  
+  A _p-value_ represents the probability of seeing a test statistic at least as extreme as the one observed, under the Null hypothesis that the test statistic came from the null distribution. An experimenter who rejects a null hypothesis if the p-value is at most $\alpha_0$ is using a test with level of significance $\alpha_0$.
+  
+  The choice of significance threshold, $\alpha_0$, for rejection of the Null hypothesis is arbitrary. Typically we take $\alpha_0 = 0.05$ but by definition this yields a type-1 error (incorrectly reject the null hypothesis) with probability 0.05. 
+  
+</div>
+
 
 ## 2.3 Size and Power
 
-The murder rates data for the Southern and North Eastern regions have means of 0.04417 and 0.01848 and variances of 0.001138 and 0.000138, respectively. Given the low variance size which may induce the power of both tests to always be one, we consider a much greater variance of 0.1 for each sample so that there is clear ‘overlap’ in the distributions of murder rates for each region.
-We therefore start by assuming a somewhat unrealistic normal distribution given below:
+__Definition- Size of a Test__
 
-$$X_{i}^{(S)} \sim N(0.04417, 0.1) \\ X_{i}^{(N)} \sim N(0.01848, 0.1)$$
+The __Size__ of a test is the probability of incorrectly rejecting the null $H_0$, also known as the “type-1" error. Usually the size and significance level $\alpha_0$ for a test are the same (by definition).
 
-X_(i,S)  ~ N(0.04417,0.1) and X_(i,NE)  ~ N(0.01848,0.1)
-We now calculate the size and power of our parametric and non-parametric tests by numerical integration. This involves evaluating each test for many samples and calculating the proportion of tests in which the p-value is less than the significance level, α (in this paper we consider the standard significance level of 5%). Incorrectly rejecting H_0 when the null hypothesis is actually true is referred to as a “type 1 error” and is known as the size of the test. Given this, one would expect the size of the test to be similar to the significance level used.
-Conversely, the power of a test is the probability that we reject H_0 given that the null is false. Therefore, we would like tests that exhibit high power. The size and power of these tests will vary, depending on 
+__Definition- Power of a Test__
 
-To help interpretability of the data we consider the murder rate per million.
+The __Power__ of a test is the probability of rejecting $H_0$ given that the null is false (i.e. the alternative hypothesis is true). 
 
-We simulate data under different scenarios to create a sample and then do this 1000 times to create 1000 samples. For each sample, we carry out the parametric and non-parametric tests and store the results in some matrix with 2 columns and 1000 rows. From this we then calculate the proportion of tests aht have type 1 and type 2 errors (i.e.- the size and power of these tests)
+One test might be considered 'better' than another if, for a given significance level (size) $\alpha_0$, it has a greater power (lower probabilty of making "type-2" errors). Therefore, we would like tests that exhibit high power for a given significance level/test size. 
+
+
+<div class="alert alert-info">
+  <strong>Power Analysis</strong> 
+  
+Power analysis can be used to calculate the minimum sample size required so that one can be reasonably likely to detect an effect of a given size. This is used in the Design of Experiments, for example in Medical Statistics trials to assess the number of patients required to achieve a pre-defined test power. 
+
+</div>
 
 # 3 United States Murder Rates
 
@@ -116,7 +141,6 @@ dtMurders <- as.data.table(murders)[grepl("south|North",
               region, ignore.case = TRUE), ]
 dtMurders[grepl("North", region, ignore.case = TRUE), 
           region := "North"]
-
 ```
 
 ```{r 3-murder-rate-table}
@@ -131,31 +155,22 @@ A more appropriated boxplot would also appear to conclude that murder rates are 
 
 Simply calculating the mean of . Naturally we could increase the sample size and hence the power fo the test by simply considering that the number of murders in each state is the sum of murders for the counties that constitute each state. 
 
-https://stats.stackexchange.com/questions/339759/how-can-the-central-limit-theorem-hold-for-distributions-which-have-limits-on-th
-
 A Normal distribution actually seems a reasonable assumption. The number of murders for each state is the addition of the number of murders at much more local levels, such as by county. Many factors will also impact on the number of murders. Therefore the total number of murders across states can be seen as the sum of many individual factors, therefore it is reasonable to assume an approximately normal distribution Of course, one caveat of this is that we can't have negative murders and by the continuous nature of the normal distribution, this will always be theoretically possible, even for a large mean estimate and small variance. 
 
 When is the data from, i.e. what time period and what is the original, credible source of the data?
 
-? What about confounding
-
 ```{r}
-#We consider the distributional properties of the original murder rates data
-#to inform the properties of the simulated data
-#Plot the distribution of the original data for each region
-cSouthRate <- dtMurders[region == "South", ]$Rate
-cNorthRate <- dtMurders[region == "North", ]$Rate
-ggplot(dtMurders[region %in% c("South", "North")]) +
-  geom_density(aes(x = Rate, col = region))
-ggplot(dtMurders[region %in% c("South", "North")]) +
-  geom_boxplot(aes(x = region, y = Rate))
-hist(cSouthRate, xlab = "Murder Rate", 
-     main = "South Region Murder Rate Distribution")
-hist(cNorthRate, xlab = "Murder Rate", main = "North East Region Murder
-     Rate Distribution")
-#Mean murder rates for each region
-dtMurders[, .(MurderRate = mean(Rate), Variance = var(Rate)), 
-                by = region]
+pDens <- ggplot(dtMurders[region %in% c("South", "North")]) + 
+  geom_density(aes(x = Rate, col = region)) +
+  labs(col = "Test")
+pBox <- ggplot(dtMurders[region %in% c("South", "North")]) +
+  geom_boxplot(aes(x = region, y = Rate))+
+  labs(col = "Test")
+ggpubr::ggarrange(pDens, pBox, nrow = 1, ncol = 2)
+
+# Mean murder rates for each region
+kable(dtMurders[, .(Obs = .N, MurderRate = mean(Rate), Variance = var(Rate)), 
+                by = region], format = "markdown")
 ```
 
 <div class="alert alert-info">
@@ -167,6 +182,7 @@ dtMurders[, .(MurderRate = mean(Rate), Variance = var(Rate)),
  
 </div>
 
+Whilst the sample size is small, it appears that the variation in murder rates is much higher in Southern States than Northern states, directing us towards the use of Welch's t-test which does not assume the population variances are equal between the two groups. 
 
 # 4 Simulation Study
 
@@ -175,6 +191,9 @@ Given that repeating the randomization function many times can be computationall
 ## 4.1 Scenario 1 – Sample Size
 
 Smaller samples may reduce the power of tests to reject the null. Such samples may contain values far in the tails of the respective distributions and thus affect the size and power of these tests. We therefore consider the size and power of the two tests for samples of increasing size.
+Simply calculating the mean of . Naturally we could increase the sample size and hence the power fo the test by simply considering that the number of murders in each state is the sum of murders for the counties that constitute each state. 
+
+The sample size determines the amount of sampling error inherent in a test result. Other things being equal, effects are harder to detect in smaller samples. Increasing sample size is often the easiest way to boost the statistical power of a test. 
 
 ```{r}
 #Use the sampSizeFun function to calculate power and size for samples of
@@ -227,7 +246,7 @@ Sample Size	Randomization Size	Randomization Power	t-test Size	t-test Power
 kable(matResults1, format = "markdown")
 ```
 
-We see that the power of the randomization sample increases as the number of randomizaed sample we calculate increases. Here we only simulate for randomized samples of size 500 given the computational time required for this process.
+We see that the power of the randomization sample increases as the number of randomized sample we calculate increases. Here we only simulate for randomized samples of size 500 given the computational time required for this process.
 
 ## 4.2 Scenario 2 - Difference in Means
 
@@ -251,12 +270,13 @@ ggplot(as.data.frame(matResults2)) +
              size = 3) + 
   geom_point(aes(x = Var, y = tAvgPValue, col = 't-test'), size = 3) + 
   labs(title = 'Test Power by Sample Size', x = 'Sample Size', 
-  y = 'Power') + geom_line(aes(x = Var, y = rAvgPValue, 
+  y = 'Power', col = "Test") + geom_line(aes(x = Var, y = rAvgPValue, 
   col = 'Randomization Test'), size = 1.2) + geom_line(aes(x = Var, 
   y = tAvgPValue, col = 't-test'), size = 1.2) + 
   scale_x_continuous(trans = 'log2')
 
 ```
+
 
 In this case, we consider differing scenarios in which the 
 When considering the test size and power, we should consider that repetitions of 1000 are relatively low for testing the true power and size.
@@ -289,14 +309,14 @@ Question- how close are the results of our randomization test relative to those 
 
 For this question, it could be that there is a strong re-distribution of the murder rates between years and that 2010 is not representative of the long-run distributions in murder rates for each region. For example, it could be that states in the North East regions had a particularly low murder rate in 2010 compared to the long-run distribution of murder rates for each region. In this case, we may have a sample for 2010 that is at the tails of the long-run distribution for murder rates. The change in power as the difference in means increases is essentially what we would see if the variance of each sample was decreasing. In this case we get a test size of 0.057 for both the randomization test and two-sample t-test.
 
-Fisherian methodology has faced criticism for its over-reliance on normal sampling assumptions. p-values are calculated based on theoretical t-dstributions, which depend on Gaussian, or Normal, assumptions. 
+Fisherian methodology has faced criticism for its over-reliance on normal sampling assumptions. p-values are calculated based on theoretical t-distributions, which depend on Gaussian, or Normal, assumptions. 
 
 <div class="alert alert-info">
   <strong>Is Normality a Reasonable Assumption?</strong> 
   
-  In many cases it may not intuitively feel as though our data is normally distibuted for this assumption in the Two-Sample T-Test to seem feasible. However, the _Central Limit Theorem_ ( __CLT__ ) tells us that the sample mean $\bar{X}_n$ of a large sample of random variables with mean $\mu$ and finite variance $\sigma^2$ has approximately a normal distribution with mean $\mu$ and variance $\frac{\sigma^2}{n}$.
+  In many cases it may not intuitively feel as though our data is normally distributed for this assumption in the Two-Sample T-Test to seem feasible. However, the _Central Limit Theorem_ ( __CLT__ ) tells us that the sample mean $\bar{X}_n$ of a large sample of random variables with mean $\mu$ and finite variance $\sigma^2$ has approximately a normal distribution with mean $\mu$ and variance $\frac{\sigma^2}{n}$.
   
-  This result helps to justify the use of the normal distribution as a model for many variables that can be thought of as being made up of many independent parts. The CLT is therefore a formal statement of how normal distributions can approximate distributions of general sums or averages of i.i.d. radm variables. For example, a person's height is influenced by many random factors. If the height of each person is determined by adding the values of these individual factors, then the distribution of the heights of a large number of persons will be approximately normally distributed. In general, the CLT indictes that the distribution of the sum of many random variables can be approximately normal, even though the distribtuion of each random variable in the sum differs from normality.
+  This result helps to justify the use of the normal distribution as a model for many variables that can be thought of as being made up of many independent parts. The CLT is therefore a formal statement of how normal distributions can approximate distributions of general sums or averages of i.i.d. random variables. For example, a person's height is influenced by many random factors. If the height of each person is determined by adding the values of these individual factors, then the distribution of the heights of a large number of persons will be approximately normally distributed. In general, the CLT indicates that the distribution of the sum of many random variables can be approximately normal, even though the distribution of each random variable in the sum differs from normality.
 </div>
 
 So far, we have simulated murder rates for both regions using normal distributions. However, given the nature and distribution of murder rates (figure ?), it is clear that a normal distribution is not appropriate 
@@ -314,6 +334,8 @@ $$\mathbb{E}[x] = \frac{\alpha}{\beta}, ~ ~ Var[x] = \frac{\alpha}{\beta^2}$$
 
 In particular, for given gamma parameters, we assess how the sample size affects the power and size of each test. However, if the sample size is sufficiently large, it will not matter if the data violates normality because, by the central limit theorem, the means will be normally distributed. In this case the sampling distribution for the t-statistic will be standard normally distributed and p-values will be valid. We find that this is generally the case for samples of size as low as 10. The more unusual the distribution of the data is and the less it resembles a normal distribution, the larger the sample size needs to be to ensure a stable test size and high power.
 
+Do a 2 x 2 design where we vary both the gamma parameters and the sample size
+
 ```{r}
 #3) Scenario 4
 # Random gamma parameters
@@ -329,46 +351,15 @@ for (i in 1:nrow(matGamma)) {
       distribution = "gamma"), "[[", 1)[2:5]
 }
 
-# Potentially 2-dimensional plots for comparing alpha and beta- consider the effective variance and also the mean of the gamm distribution, alpha/beta. Potentially plot the pvalue as a overlay coloured variable
-
-#Plot each simulated gamma distribution against the South data
-# hist(cSouthRate, xlab = "Murder Rate", main = "South Region Murder Rate 
-#      Distribution", freq = FALSE)
-# lines(density(rgamma(10000, 4.417, 100)), col = 'blue')
-# lines(density(rgamma(10000, 5, 100)), col = 'red')
-# lines(density(rgamma(10000, 4.417, 110)), col = 'green')
-# #Plot each simulated gamma distribution against the North East data
-# hist(cNorthRate, xlab = "Murder Rate", main = "North East Region Murder
-#      Rate Distribution", freq = FALSE)
-# lines(density(rgamma(10000, 1.848, 100)), col = 'blue')
-# lines(density(rgamma(10000, 2, 100)), col = 'red')
-# lines(density(rgamma(10000, 1.848, 110)), col = 'green')
-# #Graph to show changes in the two simulated gamma distributions
-# plot(density(rgamma(10000, 4.417, 100)), col = 'blue', xlab = 'Murder Rate', 
-#   main = 'Different Gamma Distributions Simulated for the Regions', 
-#   xlim = c(0, 0.12), ylim = c(0, 45), lwd = 2)
-# lines(density(rgamma(10000, 5, 100)), col = 'red', lwd = 2)
-# lines(density(rgamma(10000, 4.417, 110)), col = 'green', lwd = 2)
-# lines(density(rgamma(10000, 1.848, 100)), col = 'blue', lty = 2, lwd = 2)
-# lines(density(rgamma(10000, 2, 100)), col = 'red', lty = 2, lwd = 2)
-# lines(density(rgamma(10000, 1.1, 48)), col = 'green', lty = 2, lwd = 2)
+# Consider 2-dimensional plots for alpha and beta
 ```
-
-Table 3- Power and size for data simulated under different probability distributions
-Gamma Parameters	Randomization Size	Randomization Power	t-test Size	t-test Power
-Alpha= , beta=				
-Alpha= , beta=				
-Alpha=, beta=				
-50				
-100				
-200				
-500				
-1000			
 
 <div class="alert alert-info">
   <strong>Central Limit Theorem when the Support is not the Whole Real Line</strong> 
   
   Naturally the murder rate cannot be negative. Therefore, the mean of the murder rate cannot be negative and must have the same support as the murder rate itself. This implies the assumption of a Normal distribution for $\bar{X}_n$ is invalid since the Normal distribution can have negative support. 
+  
+  However, the Central Limit Theorem is only exactly true asymptotically, that is, as $n \rightarrow \infty$. For any finite $n$, a normal approximation to the distribution of the sample mean will give positive probability to subsets of values that are outside the bounds of the true support. 
  
 </div>
 
@@ -376,13 +367,16 @@ Alpha=, beta=
 Problem with T-tests is they are _Parametric_ and therefore require assumptions about the distribution of the data (e.g. Normality) and assumptions about the distribution of the test statistic under the Null hypothesis (derived from assumptions about the distribution of the data).
 
 Randomization tests are similar to _Permutation tests_. Under a permutation test, we permute the values across the 2 groups, since under our null hypothesis there is no difference in the value of interest. We then calculate the test statistic for each permutation, giving us a distribution of the test statistic under the Null hypothesis. Randomization tests are like permutation tests, except that only a random subset of all the possible permutations are generated.
-We get an approximate distribution of the test statistc that is non-parametric hence requires no assumptions about the data.
+We get an approximate distribution of the test statistic that is non-parametric hence requires no assumptions about the data.
 
-In particular, given the shape of the histogram when plotting murder rates, we use variants of the gamma distribution, including the chi-squared distribution to assess how the power and size of these tests alter when the data have different distirbutions.
+In particular, given the shape of the histogram when plotting murder rates, we use variants of the gamma distribution, including the chi-squared distribution to assess how the power and size of these tests alter when the data have different distributions.
 Whilst the t-test may not be valid for non-normal data, if the sample size is large enough then the t-test will be robust due to the central limit theorem. If the data is non-normal, then 
 Generally, we see that the two-sided t-test tends to outperform the randomization test, except when the data is gamma distributed and no longer normal. Other methods could also have been used to assess the small sample properties of the two tests when the variance of each sample is different, when the variance increases so that there is greater overlap in the distributions of each region, or if other non-normal distributions were used to simulate the data.
 
-Mention profiling of the code and how we have gone about this
+In large enough samples, the t-test asymptotically approximates the Z-test. However, when there are strong deviations from normality, particularly for small sample sizes, a non-parametric alternative, such as the Randomization test, may have higher statistical power. 
+
+Mention bootstrapping as something similar
+
 
 There are 2 clear arguments about why we should believe the permutation significance level generated by randomization tests:
 
@@ -392,12 +386,15 @@ Randomization greatly strengthens the conclusions of a permutation test. In part
 
 Randomization tests can be extended to a plethora of scenarios. 
 
+ADD LINK TO GITHUB REPOSITORY
+
 
 # 4 Conclusion
 
 This report has illustrated how test power and size change for the two tests as the samples upon which they act alter.
 
-# 5 References
+
+__References__
 
 Statistics How To. (2019). Parametric and Non -Parametric Data. Retrieved from https://www.statisticshowto.datasciencecentral.com/parametric-and-non-parametric-data/.
 
@@ -413,9 +410,3 @@ Bartlett, J. (September 28, 2013). The t-test and Robustness to Non-Normality. R
 Lehman, E. (1999). Elements of Large Sample Theory. Springer-Verlag, New York.
 
 DeGroot, M., Schervish, M. (2012). Probability and Statistics (4th Ed.). Pearson Education.
-
-
-Simply calculating the mean of . Naturally we could increase the sample size and hence the power fo the test by simply considering that the number of murders in each state is the sum of murders for the counties that constitute each state. 
-
-https://stats.stackexchange.com/questions/339759/how-can-the-central-limit-theorem-hold-for-distributions-which-have-limits-on-th
-
