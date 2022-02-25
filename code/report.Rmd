@@ -41,7 +41,7 @@ set.seed(cRandSeed)
 
 # 1 Introduction
 
-The Student's t-Test is a parametric test for assessing whether there is a statistically significant difference in the mean of two samples (and more generally for determining whether the mean of a sample differs in value to a constant or another sample mean)^[Student's t-test is used for inference when fitting parametric models such as the Gaussian Linear Model]. The test, however, places strong assumptions on the data, in particular that the mean of each sample is normally distributed. The Randomization test has been long-proposed as an alternative to the statistical t-test and has risen to prominence in the age of computational Statistical Inference. 
+The Student's t-test is a parametric test for assessing whether there is a statistically significant difference in the mean of two samples (and more generally for determining whether the mean of a sample differs in value to a constant or another sample mean)^[Student's t-test is used for inference when fitting parametric models such as the Gaussian Linear Model]. The test, however, places strong assumptions on the data, in particular that the mean of each sample is normally distributed. The Randomization test has been long-proposed as an alternative to the t-test and has risen to prominence in the age of computational Statistical Inference. 
 
 We consider how the size and power of the two-sample t-test and randomization test for the means of two samples vary under different scenarios. These include changes in sample size, variance and difference in mean between the samples. Further, deviations from normality are examined through the use of simulations from a Gamma distribution with varying shape and rate parameters. It is seen that the non-parametric randomization test is more robust to deviations from normality but that the t-test is asymptotically robust, measured via power and size. 
 
@@ -52,13 +52,13 @@ As a motivating example, a comparison of murder rates between Southern and North
 
 ## 2.1 Two-Sample t-test
 
-Because the data are not paired, we consider a two-sample t-test to assess whether the mean homicide rate of the two regions; South and North East, are different. The two-sample t-test has three key assumptions:
+Because the data are not paired, we consider a two-sample t-test to assess whether the mean homicide rate of the two regions, South and North East, are different. The two-sample t-test has three key assumptions:
 
-	- Observations sampled independently from the two populations being compared
+* Observations sampled independently from the two populations being compared
 	
-	- Sample mean, $\bar{X}$ follows a normal distribution
+* Sample mean, $\bar{X}$ follows a normal distribution
 	
-	- Data from the two samples have equal variances^[The equal variance assumption can be dropped and is known as Welch's t-test]
+* Data from the two samples have equal variances^[The equal variance assumption can be dropped and is known as Welch's t-test]
 	
 For large samples, the two-sample t-test is reasonably robust to deviance from normality, as attested by the __Central Limit Theorem (CLT)__. 
 
@@ -66,9 +66,9 @@ The two-sample t-test statistic is given by:
 
 $$t = \frac{\bar{X}_1 - \bar{X}_2}{S_p \sqrt{\frac{2}{n}}}$$
 
-where $S_p = \sqrt{\frac{S_{X_1}^2 + S_{X_2}^2}{2}}$ is the _Pooled Standard Deviation_. $n = n_1 + n_2$ Most two-sample t-tests are robust to all but the strongest deviations from these assumptions. 
+where $S_p = \sqrt{\frac{S_{X_1}^2 + S_{X_2}^2}{2}}$ is the _Pooled Standard Deviation_, $n = n_1 + n_2$ and $S_{X_j}$ is the standard error for sample $j$. Most two-sample t-tests are robust to all but the strongest deviations from these assumptions. 
 
-With different sample sizes we have:
+One can extend this statistic to cases where sample sizes differ:
 
 $$t = \frac{\bar{X}_1 - \bar{X}_2}{S_p \sqrt{\frac{1}{n_1} + \frac{1}{n_2}}}$$
 
@@ -78,28 +78,31 @@ $$S_p = \sqrt{\frac{(n_1 - 1)S_{X_1}^2 + (n_2 - 1)S_{X_2}^2}{n_1 + n_2 - 2}}$$
 
 Relaxing the assumption of identical population variances for the two groups, we have Welch's t-test:
 
-$$t = \frac{\bar{X}_1 + \bar{X}_2}{S_P}$$
+$$t = \frac{\bar{X}_1 - \bar{X}_2}{S_P}$$
 
 where
 
-$$S_p = \sqrt{\frac{s_1^2}{n_1} + \frac{s_2^2}{n_2}}$$
+$$S_p = \sqrt{\frac{s_{X_1}^2}{n_1} + \frac{s_{X_2}^2}{n_2}}$$
 
-The $t.test$ function in R performs the Welch t-test by default, assuming different variances for the two samples.
+The $t.test$ function in R performs the Welch t-test by default.
+
 
 ## 2.2 Randomization Test
 
-Fisher suggested using _permutations_ of the data to generate a numeric equivalent to the parametric t-test. The Data is randomly sampled into the two groups under the Null hypothesis that they have the same mean (therefore it is valid to randomly sample from the two groups to calculate an overall mean since we assume both samples are generated from a distribution with the same mean). This is done some large number $B$ times, yielding permutation t-values $t_1^*, t_2^*, ..., t_B^*$, generating a distribution of t-values under the Null Hypothesis. The two-sided permutation significance level for the original value $t$ is then the proportion of the $t_i^*$ values exceeding $t$ in absolute value:
+Fisher suggested using _permutations_ of data to generate a numeric equivalent to the parametric t-test. Data is randomly sampled into the two groups under the Null hypothesis that they have the same mean (therefore it is valid to randomly sample from the two groups to calculate an overall mean since we assume both samples are generated from a distribution with the same mean). This is done some large number $B$ times, yielding permutation t-values $t_1^*, t_2^*, ..., t_B^*$, generating a distribution of t-values under the Null Hypothesis. The two-sided permutation significance level for the original value $t$ is then the proportion of the $t_b^*$ values exceeding $t$ in absolute value:
 
-$$|t_i^*| \geq \frac{|t|}{B}$$
+$$p-value = \frac{|t_b^*| \geq |t|}{B}$$
+
+The p-value returned gets smaller as the absolute value of the test statistic $t$ increases relative to the permutation test statistics, $t_b^*$, suggested the observed test statistic is unlikely to come from the distribution of $t_b^*$ under the Null hypothesis.
 
 __Randomization Test Algorithm__
 
-1) Define K as the number of permutations
-2) for k = 1, ..., K
+1) Define B as the number of permutations
+2) for b = 1, ..., B
   2.1) Sample a permutation of the data
-  2.2) Calculate the test statistic $T_k^{(R)}$ for this permutation
-3) Count the number of permutations, $m$, for which $T_k^{(R)} \geq T^{(Obs)}$
-4) p-value = $\frac{m}{K}$
+  2.2) Calculate the test statistic $T_b^{(R)}$ for this permutation
+3) Count the number of permutations, $m$, for which $T_b^{(R)} \geq T^{(Obs)}$
+4) p-value = $\frac{m}{B}$
 
 Randomization tests may be particularly useful when the distribution of the data is strongly different to that of a normal distribution and the sample size is small (such that the results of the Central Limit Theorem have a limited impact on the distribution of the mean).
 
@@ -108,7 +111,9 @@ Randomization tests may be particularly useful when the distribution of the data
   
   A _p-value_ represents the probability of seeing a test statistic at least as extreme as the one observed, under the Null hypothesis that the test statistic came from the null distribution. An experimenter who rejects a null hypothesis if the p-value is at most $\alpha_0$ is using a test with level of significance $\alpha_0$.
   
-  The choice of significance threshold, $\alpha_0$, for rejection of the Null hypothesis is arbitrary. Typically we take $\alpha_0 = 0.05$ but by definition this yields a type-1 error (incorrectly reject the null hypothesis) with probability 0.05. 
+  The choice of significance threshold, $\alpha_0$, for rejection of the Null hypothesis is arbitrary. Typically we take $\alpha_0 = 0.05$ but by definition this yields a type-1 error (incorrectly reject the null hypothesis) with probability 0.05. That is, there is a probability of $0.05$ that we incorrectly reject the null hypothesis if it is actually true because whilst we might observe a test statistic at the extremes of the distribution of test statistics under the null, there is still non-zero probability the statistic was drawn from the null distribution. 
+  
+  Therefore one should be careful when using p-values to reject or accept hypotheses. Often it is prudent to also consider prior domain knowledge to guide our beliefs when assessing p-values.
   
 </div>
 
@@ -143,6 +148,8 @@ dtMurders[grepl("North", region, ignore.case = TRUE),
           region := "North"]
 ```
 
+Below we see the murder rate per million for US States in 2010^[Murder data: https://rdrr.io/cran/dslabs/src/R/murders.R]:
+
 ```{r 3-murder-rate-table}
 # Calculate murder rate per million to adjust for exposure
 rmarkdown::paged_table(dtMurders[, Rate := 1000000 * total / population])
@@ -151,13 +158,7 @@ rmarkdown::paged_table(dtMurders[, Rate := 1000000 * total / population])
 
 ## 3.1 Exploratory Data Analysis
 
-A more appropriated boxplot would also appear to conclude that murder rates are lower in Northern states than Southern States. However we prefer a formal statistical test to assess our hypothesis and to quantify our uncertainty about such conclusions.
-
-Simply calculating the mean of . Naturally we could increase the sample size and hence the power fo the test by simply considering that the number of murders in each state is the sum of murders for the counties that constitute each state. 
-
-A Normal distribution actually seems a reasonable assumption. The number of murders for each state is the addition of the number of murders at much more local levels, such as by county. Many factors will also impact on the number of murders. Therefore the total number of murders across states can be seen as the sum of many individual factors, therefore it is reasonable to assume an approximately normal distribution Of course, one caveat of this is that we can't have negative murders and by the continuous nature of the normal distribution, this will always be theoretically possible, even for a large mean estimate and small variance. 
-
-When is the data from, i.e. what time period and what is the original, credible source of the data?
+This brief exploratory analysis supports our initial hypothesis that Southern states have higher murder rates than Northern states. However, Southern states have a much greater variation in the murder rate, driven mainly by the outlying District of Colombia, lying more than 2 standard deviations away from the mean murder rate for Southern states. This high variance places some uncertainty around the conclusion of differing murder rates between Northern and Southern states, particularly given the low sample size.
 
 ```{r}
 pDens <- ggplot(dtMurders[region %in% c("South", "North")]) + 
@@ -169,20 +170,26 @@ pBox <- ggplot(dtMurders[region %in% c("South", "North")]) +
 ggpubr::ggarrange(pDens, pBox, nrow = 1, ncol = 2)
 
 # Mean murder rates for each region
-kable(dtMurders[, .(Obs = .N, MurderRate = mean(Rate), Variance = var(Rate)), 
-                by = region], format = "markdown")
+kable(dtMurders[, .(Obs = .N, 
+                    MurderRate = mean(Rate), 
+                    Variance = var(Rate)), 
+                by = region], 
+      format = "markdown")
+
+kable(dtMurders[region == "South" & 
+            Rate > mean(dtMurders[region == "South", ]$Rate) + 2 * 
+            sqrt(var(dtMurders[region == "South", ]$Rate)), 
+          .(state, region, Rate)], 
+      format = "markdown")
 ```
 
-<div class="alert alert-info">
-  <strong>Confounding</strong> 
-  
-  Typically when testing a hypothesis we might consider __Confounding features__; variables correlated both with the target and explanatory features. Their ommitance can result in invalid conclusions of causation between the dependent and independent feature.
-  
-  For example, if we wanted to instead answer the question "does the area in which a person resides determine their chance of committing a murder". In order to answer this question fairly, we would need to control for other features that explain differences in the murder rate between Norther and Southern states, such as average income, employment rates and measures of deprivation. Once we control for these features in an appropriate model, it might be the case that the state a person is located in is no longer statistically significant in explaining murder rates. Theses alternative __Causal__ factors would be of particular importance in taking decisions to reduce murder rates in Southern states
- 
-</div>
+
+## 3.2 Randomization vs Two-Sample t-test
 
 Whilst the sample size is small, it appears that the variation in murder rates is much higher in Southern States than Northern states, directing us towards the use of Welch's t-test which does not assume the population variances are equal between the two groups. 
+
+A Normal distribution actually seems a reasonable assumption. The number of murders for each state is the addition of the number of murders at much more local levels, such as by county. Many factors will also impact on the number of murders. Therefore the total number of murders across states can be seen as the sum of many individual factors, therefore it is reasonable to assume an approximately normal distribution Of course, one caveat of this is that we can't have negative murders and by the continuous nature of the normal distribution, this will always be theoretically possible, even for a large mean estimate and small variance. 
+
 
 # 4 Simulation Study
 
@@ -384,9 +391,20 @@ There are 2 clear arguments about why we should believe the permutation signific
 Randomization greatly strengthens the conclusions of a permutation test. In particular, _Experimental Randomization_ almost guarantees that confounding factors (age, weight, etc.) will be well-balanced between the treatment groups. Fisher's RCT (Randomized Control Trial) is still the gold standard for statistical inference in Medical trials. Randomization randomly assigns the experimental units to the possible treatment groups. 
 
 
+<div class="alert alert-info">
+  <strong>Confounding</strong> 
+  
+  Typically when testing a hypothesis we might consider __Confounding features__; variables correlated both with the target and explanatory features. Their ommitance can result in invalid conclusions of causation between the dependent and independent feature.
+  
+  For example, if we wanted to instead answer the question "does the area in which a person resides determine their chance of committing a murder". In order to answer this question fairly, we would need to control for other features that explain differences in the murder rate between Norther and Southern states, such as average income, employment rates and measures of deprivation. Once we control for these features in an appropriate model, it might be the case that the state a person is located in is no longer statistically significant in explaining murder rates. Theses alternative __Causal__ factors would be of particular importance in taking decisions to reduce murder rates in Southern states
+ 
+</div>
+
+
+
 Randomization tests can be extended to a plethora of scenarios. 
 
-ADD LINK TO GITHUB REPOSITORY
+Link to the GitHub repository to see the code: https://github.com/Domscruton/statistical-power-analysis
 
 
 # 4 Conclusion
