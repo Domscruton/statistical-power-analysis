@@ -188,8 +188,55 @@ kable(dtMurders[region == "South" &
 
 Whilst the sample size is small, it appears that the variation in murder rates is much higher in Southern States than Northern states, directing us towards the use of Welch's t-test which does not assume the population variances are equal between the two groups. 
 
-A Normal distribution actually seems a reasonable assumption. The number of murders for each state is the addition of the number of murders at much more local levels, such as by county. Many factors will also impact on the number of murders. Therefore the total number of murders across states can be seen as the sum of many individual factors, therefore it is reasonable to assume an approximately normal distribution Of course, one caveat of this is that we can't have negative murders and by the continuous nature of the normal distribution, this will always be theoretically possible, even for a large mean estimate and small variance. 
+__T-test Results__
 
+```{r murder-rates-t-test}
+tTestMurders <- t.test(dtMurders[region == "South", ]$Rate, 
+                       dtMurders[region == "North", ]$Rate)
+kable(data.table("Test Statistic" = tTestMurders$statistic, 
+                 "P-Value" = tTestMurders$p.value, 
+                 "Difference in Means" = 
+                   mean(dtMurders[region == "South"]$Rate) - 
+                   mean(dtMurders[region == "North"]$Rate),
+                 "Lower 95% CI" = tTestMurders$conf.int[1], 
+                 "Upper 95% CI" = tTestMurders$conf.int[2]))
+```
+
+__Randomization Test Results__
+
+```{r murder-rates-randomization-test}
+cTests <- 1000
+randomTestpValue <- 
+  randomFun(data = dtMurders[, .(region, Rate)], K = cTests, 
+            colTest = "region", colResponse = "Rate", 
+            levels = c("South", "North"))
+kable(setDT(randomTestpValue[names(randomTestpValue) != "TRand"]), 
+      format = "markdown")
+```
+
+The t-test yields a small p-value, with the 95% Confidence Interval for the difference in mean murder rates between Southern and Northern states not containing zero.
+
+Interestingly, the distribution of Randomization test statistics appears to be strongly non-Gaussian:
+
+```{r Randomization-statistic-distribution}
+testValues <- 
+  c("Mean Randomization Test Statistic" = mean(randomTestpValue$TRand), 
+    unlist(randomTestpValue[c("Test Statistic", "Lower 95% CI",
+                              "Upper 95% CI")]))
+vlines <- data.table(xint = testValues, Values = names(testValues))
+ggplot(data.table(randomTestpValue$TRand), aes(x = V1)) +
+  geom_density(fill = "red", alpha = 0.2) +
+  labs(x = "Randomization Test Statistic", y = "Density") +
+  ggtitle("Density Plot of Randomization Test Statistic") +
+  geom_vline(data = vlines[1:2, ], aes(xintercept = xint, colour = Values), 
+             linetype = "dashed", size = 1) +
+  geom_vline(data = vlines[3:4, ], 
+             aes(xintercept = xint, colour = "95% Confidence Interval"),
+             size = 1)
+  
+```
+
+Because we have a _two-sided_ test, we take the __absolute value__ of the test statistic, as opposed to the value. We also see that the observed test statistic lies within the 95% confidence bands of the distribution of the test statistic under the Null hypothesis, corresponding with a p-value greater than 0.05.
 
 # 4 Simulation Study
 
@@ -201,6 +248,10 @@ Smaller samples may reduce the power of tests to reject the null. Such samples m
 Simply calculating the mean of . Naturally we could increase the sample size and hence the power fo the test by simply considering that the number of murders in each state is the sum of murders for the counties that constitute each state. 
 
 The sample size determines the amount of sampling error inherent in a test result. Other things being equal, effects are harder to detect in smaller samples. Increasing sample size is often the easiest way to boost the statistical power of a test. 
+
+```{r helper-function, echo = TRUE}
+HelpFun(SimulationFun)
+```
 
 ```{r}
 #Use the sampSizeFun function to calculate power and size for samples of
@@ -324,6 +375,9 @@ Fisherian methodology has faced criticism for its over-reliance on normal sampli
   In many cases it may not intuitively feel as though our data is normally distributed for this assumption in the Two-Sample T-Test to seem feasible. However, the _Central Limit Theorem_ ( __CLT__ ) tells us that the sample mean $\bar{X}_n$ of a large sample of random variables with mean $\mu$ and finite variance $\sigma^2$ has approximately a normal distribution with mean $\mu$ and variance $\frac{\sigma^2}{n}$.
   
   This result helps to justify the use of the normal distribution as a model for many variables that can be thought of as being made up of many independent parts. The CLT is therefore a formal statement of how normal distributions can approximate distributions of general sums or averages of i.i.d. random variables. For example, a person's height is influenced by many random factors. If the height of each person is determined by adding the values of these individual factors, then the distribution of the heights of a large number of persons will be approximately normally distributed. In general, the CLT indicates that the distribution of the sum of many random variables can be approximately normal, even though the distribution of each random variable in the sum differs from normality.
+  
+  A Normal distribution actually seems a reasonable assumption. The number of murders for each state is the addition of the number of murders at much more local levels, such as by county. Many factors will also impact on the number of murders. Therefore the total number of murders across states can be seen as the sum of many individual factors, therefore it is reasonable to assume an approximately normal distribution Of course, one caveat of this is that we can't have negative murders and by the continuous nature of the normal distribution, this will always be theoretically possible, even for a large mean estimate and small variance. 
+
 </div>
 
 So far, we have simulated murder rates for both regions using normal distributions. However, given the nature and distribution of murder rates (figure ?), it is clear that a normal distribution is not appropriate 
@@ -411,6 +465,20 @@ Link to the GitHub repository to see the code: https://github.com/Domscruton/sta
 
 This report has illustrated how test power and size change for the two tests as the samples upon which they act alter.
 
+
+# 5 Code
+
+__Randomization Function__
+
+```{r randomization-function, echo = TRUE}
+print("Hello World!")
+```
+
+__Simulation Function__
+
+```{r}
+
+```
 
 __References__
 

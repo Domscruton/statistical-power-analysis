@@ -22,7 +22,7 @@ for (i in cFunSource) {
 pValueFun <- function(dtNew, K, N){
   return(c(randomFun(data = dtNew, K = K, colTest = "xTest", 
                      colResponse = "xResponse", test.args = FALSE, 
-                     levels = c("A", "B")), t.test(dtNew[1:N, 2], 
+                     levels = c("A", "B"))$p.value, t.test(dtNew[1:N, 2], 
                      dtNew[(N + 1):(2 * N), 2])$p.value))
   
 }

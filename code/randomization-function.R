@@ -93,11 +93,11 @@ randomFun <- function(data, K = 1000, colTest, colResponse,
                 mean(dtdata[(cn1 + 1):(cn1 + cn2), get(colResponse)]))
   # p-value
   p <- length(which(Trand > Tobs)) / K
-  return(p)
+  return(list("Test Statistic" = Tobs, 
+              "p.value" = p, 
+              "Number Permutations" = K, 
+              "Lower 95% CI" = quantile(Trand, probs = 0.025)[[1]], 
+              "Upper 95% CI" = quantile(Trand, probs = 0.975)[[1]], 
+              "TRand" = Trand))
   
-  # Adding MetaData explaining function
-  attr(randomFun, "help") <- 
-    "randomFun carries out a Two-Sample Randomization test, using one numeric 
-    column and one categorical or numeric column consisting of two levels for 
-    comparison"
 }
