@@ -41,7 +41,7 @@ set.seed(cRandSeed)
 
 # 1 Introduction
 
-The Student's t-Test is a parametric test for assessing whether there is a statistically significant difference in the mean of two samples (and more generally for determining whether the mean of a sample differs in value to a constant or another sample mean)^[Student's t-test is used for inference when fitting parametric models such as the Gaussian Linear Model]. The test, however, places strong assumptions on the data, in particular that the mean of each sample is normally distributed. The Randomization test has been long-proposed as an alternative to the statistical t-test and has risen to prominence in the age of computational Statistical Inference. 
+The Student's t-test is a parametric test for assessing whether there is a statistically significant difference in the mean of two samples (and more generally for determining whether the mean of a sample differs in value to a constant or another sample mean)^[Student's t-test is used for inference when fitting parametric models such as the Gaussian Linear Model]. The test, however, places strong assumptions on the data, in particular that the mean of each sample is normally distributed. The Randomization test has been long-proposed as an alternative to the t-test and has risen to prominence in the age of computational Statistical Inference. 
 
 We consider how the size and power of the two-sample t-test and randomization test for the means of two samples vary under different scenarios. These include changes in sample size, variance and difference in mean between the samples. Further, deviations from normality are examined through the use of simulations from a Gamma distribution with varying shape and rate parameters. It is seen that the non-parametric randomization test is more robust to deviations from normality but that the t-test is asymptotically robust, measured via power and size. 
 
@@ -52,13 +52,13 @@ As a motivating example, a comparison of murder rates between Southern and North
 
 ## 2.1 Two-Sample t-test
 
-Because the data are not paired, we consider a two-sample t-test to assess whether the mean homicide rate of the two regions; South and North East, are different. The two-sample t-test has three key assumptions:
+Because the data are not paired, we consider a two-sample t-test to assess whether the mean homicide rate of the two regions, South and North East, are different. The two-sample t-test has three key assumptions:
 
-	- Observations sampled independently from the two populations being compared
+* Observations sampled independently from the two populations being compared
 	
-	- Sample mean, $\bar{X}$ follows a normal distribution
+* Sample mean, $\bar{X}$ follows a normal distribution
 	
-	- Data from the two samples have equal variances^[The equal variance assumption can be dropped and is known as Welch's t-test]
+* Data from the two samples have equal variances^[The equal variance assumption can be dropped and is known as Welch's t-test]
 	
 For large samples, the two-sample t-test is reasonably robust to deviance from normality, as attested by the __Central Limit Theorem (CLT)__. 
 
@@ -66,9 +66,9 @@ The two-sample t-test statistic is given by:
 
 $$t = \frac{\bar{X}_1 - \bar{X}_2}{S_p \sqrt{\frac{2}{n}}}$$
 
-where $S_p = \sqrt{\frac{S_{X_1}^2 + S_{X_2}^2}{2}}$ is the _Pooled Standard Deviation_. $n = n_1 + n_2$ Most two-sample t-tests are robust to all but the strongest deviations from these assumptions. 
+where $S_p = \sqrt{\frac{S_{X_1}^2 + S_{X_2}^2}{2}}$ is the _Pooled Standard Deviation_, $n = n_1 + n_2$ and $S_{X_j}$ is the standard error for sample $j$. Most two-sample t-tests are robust to all but the strongest deviations from these assumptions. 
 
-With different sample sizes we have:
+One can extend this statistic to cases where sample sizes differ:
 
 $$t = \frac{\bar{X}_1 - \bar{X}_2}{S_p \sqrt{\frac{1}{n_1} + \frac{1}{n_2}}}$$
 
@@ -78,28 +78,31 @@ $$S_p = \sqrt{\frac{(n_1 - 1)S_{X_1}^2 + (n_2 - 1)S_{X_2}^2}{n_1 + n_2 - 2}}$$
 
 Relaxing the assumption of identical population variances for the two groups, we have Welch's t-test:
 
-$$t = \frac{\bar{X}_1 + \bar{X}_2}{S_P}$$
+$$t = \frac{\bar{X}_1 - \bar{X}_2}{S_P}$$
 
 where
 
-$$S_p = \sqrt{\frac{s_1^2}{n_1} + \frac{s_2^2}{n_2}}$$
+$$S_p = \sqrt{\frac{s_{X_1}^2}{n_1} + \frac{s_{X_2}^2}{n_2}}$$
 
-The $t.test$ function in R performs the Welch t-test by default, assuming different variances for the two samples.
+The $t.test$ function in R performs the Welch t-test by default.
+
 
 ## 2.2 Randomization Test
 
-Fisher suggested using _permutations_ of the data to generate a numeric equivalent to the parametric t-test. The Data is randomly sampled into the two groups under the Null hypothesis that they have the same mean (therefore it is valid to randomly sample from the two groups to calculate an overall mean since we assume both samples are generated from a distribution with the same mean). This is done some large number $B$ times, yielding permutation t-values $t_1^*, t_2^*, ..., t_B^*$, generating a distribution of t-values under the Null Hypothesis. The two-sided permutation significance level for the original value $t$ is then the proportion of the $t_i^*$ values exceeding $t$ in absolute value:
+Fisher suggested using _permutations_ of data to generate a numeric equivalent to the parametric t-test. Data is randomly sampled into the two groups under the Null hypothesis that they have the same mean (therefore it is valid to randomly sample from the two groups to calculate an overall mean since we assume both samples are generated from a distribution with the same mean). This is done some large number $B$ times, yielding permutation t-values $t_1^*, t_2^*, ..., t_B^*$, generating a distribution of t-values under the Null Hypothesis. The two-sided permutation significance level for the original value $t$ is then the proportion of the $t_b^*$ values exceeding $t$ in absolute value:
 
-$$|t_i^*| \geq \frac{|t|}{B}$$
+$$p-value = \frac{|t_b^*| \geq |t|}{B}$$
+
+The p-value returned gets smaller as the absolute value of the test statistic $t$ increases relative to the permutation test statistics, $t_b^*$, suggested the observed test statistic is unlikely to come from the distribution of $t_b^*$ under the Null hypothesis.
 
 __Randomization Test Algorithm__
 
-1) Define K as the number of permutations
-2) for k = 1, ..., K
+1) Define B as the number of permutations
+2) for b = 1, ..., B
   2.1) Sample a permutation of the data
-  2.2) Calculate the test statistic $T_k^{(R)}$ for this permutation
-3) Count the number of permutations, $m$, for which $T_k^{(R)} \geq T^{(Obs)}$
-4) p-value = $\frac{m}{K}$
+  2.2) Calculate the test statistic $T_b^{(R)}$ for this permutation
+3) Count the number of permutations, $m$, for which $T_b^{(R)} \geq T^{(Obs)}$
+4) p-value = $\frac{m}{B}$
 
 Randomization tests may be particularly useful when the distribution of the data is strongly different to that of a normal distribution and the sample size is small (such that the results of the Central Limit Theorem have a limited impact on the distribution of the mean).
 
@@ -386,7 +389,7 @@ Randomization greatly strengthens the conclusions of a permutation test. In part
 
 Randomization tests can be extended to a plethora of scenarios. 
 
-ADD LINK TO GITHUB REPOSITORY
+Link to the GitHub repository:
 
 
 # 4 Conclusion
