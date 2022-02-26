@@ -216,7 +216,7 @@ kable(setDT(randomTestpValue[names(randomTestpValue) != "TRand"]),
 
 The t-test yields a small p-value, with the 95% Confidence Interval for the difference in mean murder rates between Southern and Northern states not containing zero.
 
-Interestingly, the distribution of Randomization test statistics appears to be strongly non-Gaussian:
+The results of the Randomization test illustrate the observed test statistic lies within the 95% confidence bands of the distribution of the test statistic under the Null hypothesis, corresponding with a p-value greater than 0.05.
 
 ```{r Randomization-statistic-distribution}
 testValues <- 
@@ -233,68 +233,80 @@ ggplot(data.table(randomTestpValue$TRand), aes(x = V1)) +
   geom_vline(data = vlines[3:4, ], 
              aes(xintercept = xint, colour = "95% Confidence Interval"),
              size = 1)
-  
 ```
 
-Because we have a _two-sided_ test, we take the __absolute value__ of the test statistic, as opposed to the value. We also see that the observed test statistic lies within the 95% confidence bands of the distribution of the test statistic under the Null hypothesis, corresponding with a p-value greater than 0.05.
+Because we have a _two-sided_ test, recall we take the __absolute value__ of the test statistic.
+
 
 # 4 Simulation Study
 
-Given that repeating the randomization function many times can be computationally time-consuming, we consider randomization tests of 200 samples and repeat the tests 1000 times.
+We would like to assess how the power of the t-test and randomization test varies depending on the characteristics of the two samples. By simulating data, we know the true effect size (or whether there is an effect size), thus we can determine the power since we know what the correct conclusions of each test should be.
+
 
 ## 4.1 Scenario 1 – Sample Size
 
-Smaller samples may reduce the power of tests to reject the null. Such samples may contain values far in the tails of the respective distributions and thus affect the size and power of these tests. We therefore consider the size and power of the two tests for samples of increasing size.
-Simply calculating the mean of . Naturally we could increase the sample size and hence the power fo the test by simply considering that the number of murders in each state is the sum of murders for the counties that constitute each state. 
+The sample size determines the amount of sampling error inherent in a test result. All else equal, effects are harder to detect in smaller samples. Increasing sample size is often the easiest way to boost the statistical power of a test. 
 
-The sample size determines the amount of sampling error inherent in a test result. Other things being equal, effects are harder to detect in smaller samples. Increasing sample size is often the easiest way to boost the statistical power of a test. 
+The _SimulationFun_ function has been created for simulating two samples by varying the input parameters, such as the sample size. It then performs Randomization and t-tests, returning the results:
 
 ```{r helper-function, echo = TRUE}
 HelpFun(SimulationFun)
 ```
 
+We observe that the Randomization test has greater power across all sample sizes. By definition, the size of both tests converges to 0.05, as expected.
+
 ```{r}
-#Use the sampSizeFun function to calculate power and size for samples of
-#increasing size
-# Sample sizes to simulate. Doubling saves computational time and
-# allows us to log-transform the scale
+# Doubling sample size saves computational time and allows us to 
+# log-transform the scale
 cSampSize <- 2 ^ seq(1, 10)
 # storage datatable of results
-matResults1 <- matrix(NA, nrow = length(cSampSize), ncol = 5)
-matResults1[, 1] <- cSampSize
-colnames(matResults1) <- c("Var", "rSizePower", "rAvgPValue",
-                           "tSizePower", "tAvgPValue")
+matResults1Power <- matrix(NA, nrow = length(cSampSize), ncol = 5)
+matResults1Power[, 1] <- cSampSize
+colnames(matResults1Power) <- 
+  c("N", "rSizePower", "rAvgPValue", "tSizePower", "tAvgPValue")
 # create identical matrices for different scenarios
 for (i in 2:4) {
-  eval(call("<-", paste0("matResults", i), matResults1))
+  eval(call("<-", paste0("matResults", i, "Power"), matResults1Power))
+  # Create matrices for size calculations
+  eval(call("<-", paste0("matResults", i, "Size"), matResults1Power))
 }
 
 j <- 0
 for (i in cSampSize) {
   j <- j + 1
-  matResults1[j, 2:5] <- sapply(SimulationFun(N = i, K = 10, R = 10, 
-                                              diff.means = 0.1), 
-                            "[[", 1)[2:5]
+  matResults1[j, 2:5] <- 
+    sapply(SimulationFun(N = i, K = 10, R = 10, diff.means = 0.1),
+           "[[", 1)[2:5]
+}
+# Calculate the size of the test
+j <- 0
+for (i in cSampSize) {
+  j <- j + 1
+  matResults1Size[j, 2:5] <- 
+    sapply(SimulationFun(N = i, K = 10, R = 10, diff.means = 0), 
+           "[[", 1)[2:5]
 }
 #Plot of test power against sample size
-# Could turn these plot calls into a function
-ggplot(as.data.frame(matResults1)) + 
-  geom_point(aes(x = Var, y = rAvgPValue, col = 'Randomization Test'),
+ggplot(as.data.frame(matResults1), aes(x = N)) + 
+  geom_point(aes(y = rSizePower, col = 'Randomization Test'),
              size = 3) + 
-  geom_point(aes(x = Var, y = tAvgPValue, col = 't-test'), size = 3) + 
-  labs(title = 'Test Power by Sample Size', x = 'Sample Size', 
-  y = 'Power') + geom_line(aes(x = Var, y = rAvgPValue, 
-  col = 'Randomization Test'), size = 1.2) + geom_line(aes(x = Var, 
-  y = tAvgPValue, col = 't-test'), size = 1.2) + 
+  geom_point(aes(y = tSizePower, col = 't-test'), size = 3) + 
+  labs(title = 'Test Power by Sample Size', 
+       x = 'Sample Size', y = 'Power') + 
+  geom_line(aes(y = rSizePower, col = 'Randomization Test'), 
+            size = 1.2) + 
+  geom_line(aes(y = tSizePower, col = 't-test'), size = 1.2) + 
   scale_x_continuous(trans = 'log2')
 #Plot of test size against sample size
-ggplot(as.data.frame(matResults1)) + 
-  geom_point(aes(x = Var, y = rSizePower, col = 'Randomization Test'), size = 2) + 
-  geom_point(aes(x = Var, y = tSizePower, col = 'T-test'), size = 2) + 
+ggplot(as.data.frame(matResults1Size), aes(x = N)) + 
+  geom_point(aes(y = rSizePower, col = 'Randomization Test'), size = 2) + 
+  geom_point(aes(y = tSizePower, col = 'T-test'), size = 2) + 
   labs(title = 'Test Size for Increasing Sample Size', x = 'Log Sample Size', 
        y = 'Test Size') + 
-  geom_line(aes(x = Var, y = rSizePower, col = 'Randomization Test'), size = 1) + 
-  geom_line(aes(x = Var, y = tSizePower, col = 't-test'), size = 1)
+  geom_line(aes(y = rSizePower, col = 'Randomization Test'), size = 1) + 
+  geom_line(aes(y = tSizePower, col = 't-test'), size = 1) +
+  geom_hline(yintercept = 0.05, linetype = "dashed") + 
+  scale_x_continuous(trans = 'log2')
 ```
 
 Table 1- Size and Power for Increasing Sample Size
@@ -317,13 +329,13 @@ cDiffMeans <- seq(0, 0.9, 0.1)
 j <- 0
 for (i in cDiffMeans) {
   j <- j + 1
-  matResults2[j, 2:5] <- sapply(SimulationFun(N = 20, K = 10, R = 10, 
+  matResults2Power[j, 2:5] <- sapply(SimulationFun(N = 20, K = 10, R = 10, 
                                               diff.means = i), 
                             "[[", 1)[2:5]
 }
 
 # Plot results
-ggplot(as.data.frame(matResults2)) + 
+ggplot(as.data.frame(matResults2Power)) + 
   geom_point(aes(x = Var, y = rAvgPValue, col = 'Randomization Test'),
              size = 3) + 
   geom_point(aes(x = Var, y = tAvgPValue, col = 't-test'), size = 3) + 
@@ -350,7 +362,7 @@ cVar <- 2 ^ seq(-4, 5)
 j <- 0
 for (i in cVar) {
   j <- j + 1
-  matResults3[j, 2:5] <- sapply(SimulationFun(N = 20, K = 10, R = 10, sd = i), 
+  matResults3Power[j, 2:5] <- sapply(SimulationFun(N = 20, K = 10, R = 10, sd = i), 
                             "[[", 1)[2:5]
 }
 
