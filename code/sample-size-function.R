@@ -95,5 +95,3 @@ SimulationFun <- function(N = 200, K = 1000, R = 100, alpha = 0.05,
   return(list("Results" = resultsFun(PMatrix, R, alpha), 
               "tTestStatistics" = tTestValue))
 }
-
-# question- is it quicker to store values as a matrix or a data.table in the above?

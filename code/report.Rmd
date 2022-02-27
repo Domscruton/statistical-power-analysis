@@ -309,15 +309,11 @@ ggplot(as.data.frame(matResults1Size), aes(x = N)) +
   geom_line(aes(y = tTest.Power, col = 't-test'), size = 1) +
   geom_hline(yintercept = 0.05, linetype = "dashed") + 
   scale_x_continuous(trans = 'log2')
+rmarkdown::paged_table(as.data.table(matResults1Power))
 ```
 
 Table 1- Size and Power for Increasing Sample Size
 Sample Size	Randomization Size	Randomization Power	t-test Size	t-test Power
-
-```{r}
-# Rename columns for display
-kable(matResults1Power, format = "markdown")
-```
 
 We see that the power of the randomization sample increases as the number of randomized sample we calculate increases. Here we only simulate for randomized samples of size 500 given the computational time required for this process.
 
@@ -326,30 +322,28 @@ We see that the power of the randomization sample increases as the number of ran
 Naturally as one would expect, the power of the Randomization and t-test increase as the difference in means (Effect Size) between the two samples increases.
 
 ```{r}
-#Use the diffMeansFun function to calculate power and size for samples 
-#with increasing differences in means
 cDiffMeans <- seq(0, 0.9, 0.1)
 j <- 0
 for (i in cDiffMeans) {
   j <- j + 1
-  matResults2Power[j, 2:5] <- sapply(SimulationFun(N = 20, K = 10, R = 10, 
-                                              diff.means = i)$Results, 
-                            "[[", 1)[2:5]
+  matResults2Power[j, 2:5] <- 
+    sapply(SimulationFun(N = 20, K = 10, R = 10, diff.means = i)$Results,
+           "[[", 1)[2:5]
 }
 matResults2Power[, 1] <- cDiffMeans
 # Plot results
 ggplot(as.data.frame(matResults2Power)) + 
-  geom_point(aes(x = N, y = Randomization.AvgPValue, 
+  geom_point(aes(x = N, y = Randomization.Power, 
                  col = 'Randomization Test'), size = 3) + 
-  geom_point(aes(x = N, y = tTest.AvgPValue, col = 't-test'), size = 3) + 
+  geom_point(aes(x = N, y = tTest.Power, col = 't-test'), size = 3) + 
   labs(title = 'Test Power by Effect Size', x = 'Effect Size', 
        y = 'Power', col = "Test") + 
-  geom_line(aes(x = N, y = Randomization.AvgPValue, 
+  geom_line(aes(x = N, y = Randomization.Power, 
                 col = 'Randomization Test'), size = 1.2) + 
-  geom_line(aes(x = N, y = tTest.AvgPValue, col = 't-test'), size = 1.2) + 
+  geom_line(aes(x = N, y = tTest.Power, col = 't-test'), size = 1.2) + 
   scale_x_continuous(trans = 'log2')
-
-kable(matResults2Power, format = "markdown")
+colnames(matResults2Power)[1] <- "Effect Size"
+rmarkdown::paged_table(as.data.table(matResults2Power))
 ```
 
 
@@ -357,30 +351,31 @@ kable(matResults2Power, format = "markdown")
 
 When we increase the variance of each distribution, we a similar result as when we reduce the difference in means between the two distributions
 
-```{r variance}
+```{r variance, warning = FALSE}
 # Scenario 3
 cVar <- 2 ^ seq(-4, 5)
 j <- 0
 for (i in cVar) {
   j <- j + 1
-  matResults3Power[j, 2:5] <- sapply(SimulationFun(N = 20, K = 10, R = 10, sd = i)$Results, 
-                            "[[", 1)[2:5]
+  matResults3Power[j, 2:5] <- 
+    sapply(SimulationFun(N = 20, K = 10, R = 10, sd = i)$Results,
+           "[[", 1)[2:5]
 }
 matResults3Power[, 1] <- cVar
 # Plot results
-ggplot(as.data.frame(matResults2Power)) + 
-  geom_point(aes(x = N, y = Randomization.AvgPValue, 
+ggplot(as.data.frame(matResults3Power)) + 
+  geom_point(aes(x = N, y = Randomization.Power, 
                  col = 'Randomization Test'), size = 3) + 
-  geom_point(aes(x = N, y = tTest.AvgPValue, col = 't-test'), size = 3) + 
+  geom_point(aes(x = N, y = tTest.Power, col = 't-test'), size = 3) + 
   labs(title = 'Test Power by Sample Variance', x = 'Variance', 
        y = 'Power', col = "Test") + 
-  geom_line(aes(x = N, y = Randomization.AvgPValue, 
+  geom_line(aes(x = N, y = Randomization.Power, 
                 col = 'Randomization Test'), size = 1.2) + 
-  geom_line(aes(x = N, y = tTest.AvgPValue, col = 't-test'), size = 1.2) + 
+  geom_line(aes(x = N, y = tTest.Power, col = 't-test'), size = 1.2) + 
   scale_x_continuous(trans = 'log2')
 
-kable(matResults3Power, format = "markdown")
-
+colnames(matResults3Power)[1] <- "Variance"
+rmarkdown::paged_table(as.data.table(matResults3Power))
 ```
 
 
@@ -475,7 +470,7 @@ with(as.data.frame(ctTestStats), qqPlot(ctTestStats))
 
 ```{r gamma-increasing-sample-size}
 for (i in c(10, 100, 1000)) {
-  ctTestStats <- SimulationFun(N = i, K = 10, R = 100,
+  ctTestStats <- SimulationFun(N = i, K = 10, R = 100 ,
       shape = unlist(matGamma[1, 1:2]), rate = unlist(matGamma[1, 3:4]), 
       distribution = "gamma")$tTestStatistics
   cat(paste("Sample Size:", i))
@@ -489,6 +484,30 @@ for (i in c(10, 100, 1000)) {
 }
 ```
 
+Now also consider the size of the tests
+
+```{r size}
+j <- 0
+for (i in cSampSize[-1]) {
+  j <- j + 1
+  matResults4Size[j, 2:5] <- 
+    sapply(SimulationFun(N = i, K = 10, R = 100 ,
+      shape = c(0.1, 10), rate = unlist(0.5, 50), 
+      distribution = "gamma")$Results, 
+           "[[", 1)[2:5]
+}
+#Plot of test size against sample size
+ggplot(as.data.frame(matResults4Size), aes(x = N)) + 
+  geom_point(aes(y = Randomization.Power, col = 'Randomization Test'), size = 2) + 
+  geom_point(aes(y = tTest.Power, col = 't-test'), size = 2) + 
+  labs(title = 'Test Size for Increasing Sample Size', x = 'Log Sample Size', 
+       y = 'Test Size') + 
+  geom_line(aes(y = Randomization.Power, col = 'Randomization Test'), size = 1) + 
+  geom_line(aes(y = tTest.Power, col = 't-test'), size = 1) +
+  geom_hline(yintercept = 0.05, linetype = "dashed") + 
+  scale_x_continuous(trans = 'log2')
+rmarkdown::paged_table(as.data.table(matResults4Size))
+```
 
 Problem with T-tests is they are _Parametric_ and therefore require assumptions about the distribution of the data (e.g. Normality) and assumptions about the distribution of the test statistic under the Null hypothesis (derived from assumptions about the distribution of the data).
 
@@ -533,13 +552,191 @@ This report has illustrated how test power and size change for the two tests as 
 __Randomization Function__
 
 ```{r randomization-function, echo = TRUE}
-print("Hello World!")
+
+# randomFunTest -----------------------------------------------------------
+
+# Function to carry out testing of randomFun arguments (improves readability)
+
+randomFunTest <- function(data, K, colTest, colResponse, levels = NULL){
+  # Check arguments
+  # 1) data
+  if (!is.data.table(data) & !is.data.frame(data)) {
+    stop("data must be of class data.frame or data.table")
+  }else if (sum(sapply(data, is.numeric)) < 1) {
+    stop("Randomization test requires at least 1 numeric columns in input 
+         dataset")
+  }else if (dim(data)[2] > 2) {
+    warning("More than 2 columns provided and column names not specified. 
+            First two columns used as Test and Response columns. 
+            \nPlease specify required columns if these are incorrect")
+  }
+  # 2) K
+  if (!is.numeric(K)) {
+    stop("K (number of permutations) must be of type numeric or integer")
+  }else if (K <= 0 | K %% 1 != 0) {
+    stop("K must be a positive integer")
+  }
+  # 3) ColTest and ColVars
+  for (i in c("colTest", "colResponse")) {
+    if (!is.null(eval(parse(text = i)))) {
+      if (is.character(eval(parse(text = i))) & 
+          !(eval(parse(text = i)) %in% colnames(data))) {
+        stop("input data.table does not contain specified columns")
+      }
+    }
+  }
+  # 4) Levels
+  if (!is.null(levels)) {
+    if (any(!(levels %in% data[, get(colTest)]))) {
+      stop("Provided levels not found in Test column")
+    }
+  }else{
+    warning("Since no levels provided 1st 2 levels identified used in test")
+  }
+  if (!is.null(levels) & length(unique(levels)) != 2) {
+    warning("Randomization test requires 2 levels in levels argument")
+  }else if (length(unique(data[, get(colTest)])) < 2){
+    stop("ColTest requires at least 2 unique levels")
+  }
+}
+  
+# randomFun ---------------------------------------------------------------
+
+randomFun <- function(data, K = 1000, colTest, colResponse, 
+                      levels = NULL, test.args = TRUE){
+  # Function to calculate randomized test statistics
+  # Inputs:
+    # data: combined dataset for the two samples
+    # K: number of randomization samples to carry out
+    # colTest: character string specifying testing column
+    # colResponse: character string specifying response column
+    # levels: optional character vector of 2 levels of colTest for comparison
+            # if not specified performs two-sample t-test for first 2 levels
+    # test.args: should arguments be tested for compatability?
+  # Output:
+    # p-value from empirical t-distribution
+
+  # Check arguments
+  if (test.args) {
+    randomFunTest(data, K, colTest, colResponse, levels)
+  }
+  
+  # Convert dataframe to data.table (data.table more efficient)
+  dtdata <- as.data.table(x = data)
+  # specify levels if unspecified
+  if (is.null(levels)) {
+    levels <- unique(dtdata[, get(colTest)])[1:2]
+  }
+  
+  # Calculate number of observations within each level
+  cn1 <- dim(dtdata[get(colTest) %in% levels[1], ])[1]
+  cn2 <- dim(dtdata[get(colTest) %in% levels[2], ])[1]
+  # Initialize storage vector for test statistics
+  Trand <- rep(NA, K)
+  for (k in 1:K) {
+    # Create randomised samples by permuting the data
+    indices <- sample(1:(cn1 + cn2))
+    # get() collapses datatable to vector
+    dtperm <- dtdata[indices, get(colResponse)]
+    # Calculate t-statistic for each permutation
+    Trand[k] <- abs(mean(dtperm[1:cn1]) - mean(dtperm[(cn1 + 1):(cn1 + cn2)]))
+  }
+  # Calculate t-statistic for original data
+  Tobs <- abs(mean(dtdata[1:cn1, get(colResponse)]) - 
+                mean(dtdata[(cn1 + 1):(cn1 + cn2), get(colResponse)]))
+  # p-value
+  p <- length(which(Trand > Tobs)) / K
+  return(list("Test Statistic" = Tobs, 
+              "p.value" = p, 
+              "Number Permutations" = K, 
+              "Lower 95% CI" = quantile(Trand, probs = 0.025)[[1]], 
+              "Upper 95% CI" = quantile(Trand, probs = 0.975)[[1]], 
+              "TRand" = Trand))
+  
+}
 ```
 
 __Simulation Function__
 
-```{r}
+```{r simulation-function, eval=FALSE, echo=TRUE}
+# Input function for SimulationFun, used to calculate p-values for the 
+# Randomization and t-test
+pValueFun <- function(dtNew, K, N){
+  test <- t.test(dtNew[1:N, 2], dtNew[(N + 1):(2 * N), 2])
+  return(c(randomFun(data = dtNew, K = K, colTest = "xTest", 
+                     colResponse = "xResponse", test.args = FALSE, 
+                     levels = c("A", "B"))$p.value, 
+           test$p.value, test$statistic))
+}
 
+
+SimulationFun <- function(N = 200, K = 1000, R = 100, alpha = 0.05, 
+                          distribution = "gaussian", diff.means = 0, 
+                          sd = 1, shape = NULL, rate = NULL){
+  # Function to calculate size and power varying sample sizes
+  # Inputs:
+    # N: sample size to simulate for each level
+    # K: number of randomization samples to calculate
+    # R: number of test replications
+    # alpha: significance level
+    # distribution: distribution from which to simulate data
+      # (can be either gaussian or gamma)
+    # diff.means: difference in means of 2 levels if gaussian
+    # sd: standard deviation for the gaussian distribution simulations
+    # shape: length 2 vector of gamma shape parameters for each level
+      # (only if gamma distribution specified)
+    # rate: length 2 vector of gamma rate parameters for each level
+    # (only if gamma distribution specified)  
+  # Output:
+    # Results: (4x1)- list containing the size and power of the two tests
+  
+  # Create matrix to store p-values from tests
+  PMatrix <- matrix(data = NA, nrow = R, ncol = 2)
+  # Create data.table to store simulated datasets
+  # (pre-defining size reduces computational burden)
+  dtNew <- data.table(xTest = c(rep("A", N), rep("B", N)), 
+                      xResponse = NA)
+  # Create vector to store t-test statistics
+  tTestValue <- c(rep(NA, R))
+  if (distribution == "gaussian") {
+    if (!is.null(shape) | !is.null(rate)) {
+      warning("Shape and/or rate parameters unused since simulations fitted
+              from gaussian. Specify distribution = gamma if gamma simulations
+              required")
+    }
+    for (i in 1:R) {
+      # Iterate sample creation for given sample size
+      dtNew[, xResponse := ifelse(xTest == "A", rnorm(N, 0, sd), 
+                                  rnorm(N, diff.means, sd))]
+      cResults <- pValueFun(dtNew, K, N)
+      PMatrix[i, ] <- cResults[1:2]
+      tTestValue[i] <- cResults[3]
+    }
+  }else if (distribution == "gamma") {
+    # If shape or rate not specified, create defaults
+    if (is.null(shape) | is.null(rate)) {
+      shape <- rep(1, 2)
+      rate <- shape
+      warning("gamma distribution specified but shape or rate parameters 
+              incomplete.\nEnsure both are numeric vectors of length 2, 
+              otherwise defaults of shape = 1, rate = 1 used")
+    }
+    for (i in 1:R) {
+      dtNew[, xResponse := ifelse(xTest == "A", 
+                                  rgamma(N, shape = shape[1], rate = rate[1]), 
+                                  rgamma(N, shape = shape[2], rate = rate[2]))]
+      cResults <- pValueFun(dtNew, K, N)
+      PMatrix[i, ] <- cResults[1:2]
+      tTestValue[i] <- cResults[3]
+    }
+  }else{
+    stop("distribution must be either 'gaussian' or 'gamma'\n 
+         default is gaussian if no distribution argument set")
+  }
+  # return size and power of each test
+  return(list("Results" = resultsFun(PMatrix, R, alpha), 
+              "tTestStatistics" = tTestValue))
+}
 ```
 
 __References__
