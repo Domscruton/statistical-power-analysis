@@ -20,11 +20,11 @@ for (i in cFunSource) {
 # Input function for SimulationFun, used to calculate p-values for the 
 # Randomization and t-test
 pValueFun <- function(dtNew, K, N){
+  test <- t.test(dtNew[1:N, 2], dtNew[(N + 1):(2 * N), 2])
   return(c(randomFun(data = dtNew, K = K, colTest = "xTest", 
                      colResponse = "xResponse", test.args = FALSE, 
-                     levels = c("A", "B"))$p.value, t.test(dtNew[1:N, 2], 
-                     dtNew[(N + 1):(2 * N), 2])$p.value))
-  
+                     levels = c("A", "B"))$p.value, 
+           test$p.value, test$statistic))
 }
 
 
@@ -54,6 +54,8 @@ SimulationFun <- function(N = 200, K = 1000, R = 100, alpha = 0.05,
   # (pre-defining size reduces computational burden)
   dtNew <- data.table(xTest = c(rep("A", N), rep("B", N)), 
                       xResponse = NA)
+  # Create vector to store t-test statistics
+  tTestValue <- c(rep(NA, R))
   if (distribution == "gaussian") {
     if (!is.null(shape) | !is.null(rate)) {
       warning("Shape and/or rate parameters unused since simulations fitted
@@ -64,7 +66,9 @@ SimulationFun <- function(N = 200, K = 1000, R = 100, alpha = 0.05,
       # Iterate sample creation for given sample size
       dtNew[, xResponse := ifelse(xTest == "A", rnorm(N, 0, sd), 
                                   rnorm(N, diff.means, sd))]
-      PMatrix[i, ] <- pValueFun(dtNew, K, N)
+      cResults <- pValueFun(dtNew, K, N)
+      PMatrix[i, ] <- cResults[1:2]
+      tTestValue[i] <- cResults[3]
     }
   }else if (distribution == "gamma") {
     # If shape or rate not specified, create defaults
@@ -76,20 +80,18 @@ SimulationFun <- function(N = 200, K = 1000, R = 100, alpha = 0.05,
               otherwise defaults of shape = 1, rate = 1 used")
     }
     for (i in 1:R) {
-      # Potentially think about the efficiency of this- does it 
-      # extract the rate and shape values for each observation 
-      # assess this via profiling and use of system.time
       dtNew[, xResponse := ifelse(xTest == "A", 
                                   rgamma(N, shape = shape[1], rate = rate[1]), 
                                   rgamma(N, shape = shape[2], rate = rate[2]))]
-      PMatrix[i, ] <- pValueFun(dtNew, K, N)
+      cResults <- pValueFun(dtNew, K, N)
+      PMatrix[i, ] <- cResults[1:2]
+      tTestValue[i] <- cResults[3]
     }
   }else{
     stop("distribution must be either 'gaussian' or 'gamma'\n 
          default is gaussian if no distribution argument set")
   }
   # return size and power of each test
-  return(resultsFun(PMatrix, R, alpha))
+  return(list("Results" = resultsFun(PMatrix, R, alpha), 
+              "tTestStatistics" = tTestValue))
 }
-
-# question- is it quicker to store values as a matrix or a data.table in the above?
