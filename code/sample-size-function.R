@@ -86,7 +86,6 @@ SimulationFun <- function(N = 200, K = 1000, R = 100, alpha = 0.05,
       cResults <- pValueFun(dtNew, K, N)
       PMatrix[i, ] <- cResults[1:2]
       tTestValue[i] <- cResults[3]
-      PMatrix[i, ] <- pValueFun(dtNew, K, N)
     }
   }else{
     stop("distribution must be either 'gaussian' or 'gamma'\n 
